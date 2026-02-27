@@ -241,6 +241,10 @@ function createSkyMaterial() {
       uSunDir: { value: new THREE.Vector3(0, 1, 0) },
       uSunAltDeg: { value: -90.0 },
       uTurbidity: { value: 4.0 },
+      uWorldToEquatorial: { value: new THREE.Matrix3() },
+      uNeverRisesThresholdDeg: { value: -54.0 },
+      uNeverRisesMode: { value: 1.0 },
+      uGroundMaskStrength: { value: 0.30 },
     },
     vertexShader: `
       varying vec3 vDir;
@@ -254,6 +258,10 @@ function createSkyMaterial() {
       uniform vec3 uSunDir;
       uniform float uSunAltDeg;
       uniform float uTurbidity;
+      uniform mat3 uWorldToEquatorial;
+      uniform float uNeverRisesThresholdDeg;
+      uniform float uNeverRisesMode;
+      uniform float uGroundMaskStrength;
 
       float luma(vec3 c) {
         return dot(c, vec3(0.299, 0.587, 0.114));
@@ -298,6 +306,25 @@ function createSkyMaterial() {
         float maxLuma = 0.28 + 0.20 * sunUp;
         color = softClipLuma(color, maxLuma);
         color = clamp(color, 0.0, 1.0);
+
+        vec3 eqDir = normalize(uWorldToEquatorial * dir);
+        float decDeg = degrees(asin(clamp(eqDir.y, -1.0, 1.0)));
+        float neverRisesMask = 0.0;
+        if (uNeverRisesMode > 0.0) {
+          // Northern hemisphere: never rises when dec <= (lat - 90).
+          neverRisesMask = step(decDeg, uNeverRisesThresholdDeg);
+        } else {
+          // Southern hemisphere: never rises when dec >= (lat + 90).
+          neverRisesMask = step(uNeverRisesThresholdDeg, decDeg);
+        }
+        vec3 neverRisesTint = vec3(0.42, 0.07, 0.07);
+        color = mix(color, color + neverRisesTint, 0.08 * neverRisesMask);
+        color = clamp(color, 0.0, 1.0);
+
+        // Darken the lower hemisphere (alt < 0) without a physical ground disc.
+        float groundMask = step(dir.y, 0.0);
+        vec3 groundColor = vec3(0.12, 0.19, 0.27);
+        color = mix(color, groundColor, uGroundMaskStrength * groundMask);
 
         gl_FragColor = vec4(color, 1.0);
       }
@@ -460,18 +487,15 @@ const starMeshes = STAR_LAYERS.map((layer, index) => {
 });
 const equatorialRotation = new THREE.Quaternion();
 const equatorialBasisMatrix = new THREE.Matrix4();
+const worldToEquatorialMatrix3 = new THREE.Matrix3();
+const horizonGroup = new THREE.Group();
+scene.add(horizonGroup);
 
-const horizonRadius = 90;
+const horizonRadius = SYMBOL_RADIUS - 2;
 const horizonPoints = [];
 for (let i = 0; i < 256; i += 1) {
-  const a = (i / 256) * Math.PI * 2;
-  horizonPoints.push(
-    new THREE.Vector3(
-      Math.cos(a) * horizonRadius,
-      0,
-      Math.sin(a) * horizonRadius
-    )
-  );
+  const az = (i / 256) * 360.0;
+  horizonPoints.push(altAzToVector(0.0, az, horizonRadius));
 }
 const horizonGeometry = new THREE.BufferGeometry().setFromPoints(horizonPoints);
 const horizonRing = new THREE.LineLoop(
@@ -483,7 +507,7 @@ const horizonRing = new THREE.LineLoop(
     depthTest: false,
   })
 );
-scene.add(horizonRing);
+horizonGroup.add(horizonRing);
 
 const horizonTickGeometry = new THREE.BufferGeometry();
 const horizonTicks = new THREE.LineSegments(
@@ -495,40 +519,20 @@ const horizonTicks = new THREE.LineSegments(
     depthTest: false,
   })
 );
-scene.add(horizonTicks);
+horizonGroup.add(horizonTicks);
 
 function updateHorizonTicksByAngularSize(targetAngularDeg) {
-  // Keep marker length so the apparent size from eye height is targetAngularDeg.
-  const eyeToTickDist = Math.sqrt(horizonRadius * horizonRadius + EYE_HEIGHT_M * EYE_HEIGHT_M);
-  const theta = THREE.MathUtils.degToRad(Math.max(0.05, targetAngularDeg));
-  const tickLen = 2.0 * eyeToTickDist * Math.tan(theta * 0.5);
-  const half = tickLen * 0.5;
-
+  const halfAltDeg = Math.max(0.025, targetAngularDeg * 0.5);
   const points = [];
   for (let i = 0; i < 8; i += 1) {
-    const a = (i / 8) * Math.PI * 2;
-    const c = Math.cos(a);
-    const s = Math.sin(a);
+    const az = (i / 8) * 360.0;
     points.push(
-      new THREE.Vector3(c * horizonRadius, -half, s * horizonRadius),
-      new THREE.Vector3(c * horizonRadius, +half, s * horizonRadius)
+      altAzToVector(-halfAltDeg, az, horizonRadius),
+      altAzToVector(+halfAltDeg, az, horizonRadius)
     );
   }
   horizonTickGeometry.setFromPoints(points);
 }
-
-const groundDisc = new THREE.Mesh(
-  new THREE.CircleGeometry(70, 96),
-  new THREE.MeshBasicMaterial({
-    color: 0x22354a,
-    transparent: true,
-    opacity: 0.33,
-    depthWrite: false,
-    side: THREE.DoubleSide,
-  })
-);
-groundDisc.rotation.x = -Math.PI / 2;
-scene.add(groundDisc);
 
 let activeLocation = { ...DEFAULT_LOCATION, source: 'default' };
 let observer = new Astronomy.Observer(activeLocation.lat, activeLocation.lon, 0);
@@ -689,6 +693,18 @@ function updateStarfieldOrientation(when) {
 
   for (const mesh of starMeshes) {
     mesh.quaternion.copy(equatorialRotation);
+  }
+
+  worldToEquatorialMatrix3.setFromMatrix4(equatorialBasisMatrix).invert();
+  skyMaterial.uniforms.uWorldToEquatorial.value.copy(worldToEquatorialMatrix3);
+
+  const lat = activeLocation.lat;
+  if (lat >= 0.0) {
+    skyMaterial.uniforms.uNeverRisesMode.value = 1.0;
+    skyMaterial.uniforms.uNeverRisesThresholdDeg.value = lat - 90.0;
+  } else {
+    skyMaterial.uniforms.uNeverRisesMode.value = -1.0;
+    skyMaterial.uniforms.uNeverRisesThresholdDeg.value = lat + 90.0;
   }
 
   for (const star of famousStarObjects) {
@@ -907,8 +923,7 @@ renderer.setAnimationLoop((_time, xrFrame) => {
       mesh.position.copy(camera.position);
     }
     solarSystemGroup.position.copy(camera.position);
-    groundDisc.position.copy(camera.position);
-    groundDisc.position.y -= EYE_HEIGHT_M;
+    horizonGroup.position.copy(camera.position);
   }
 
   if (renderer.xr.isPresenting) {
@@ -918,8 +933,7 @@ renderer.setAnimationLoop((_time, xrFrame) => {
       mesh.position.copy(sky.position);
     }
     solarSystemGroup.position.copy(sky.position);
-    groundDisc.position.copy(sky.position);
-    groundDisc.position.y -= EYE_HEIGHT_M;
+    horizonGroup.position.copy(sky.position);
 
     if (vrSplashSprite) {
       if (nowMs > vrSplashUntilMs) {
