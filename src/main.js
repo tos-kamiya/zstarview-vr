@@ -72,39 +72,6 @@ function createStarfieldFromLayer(layer, radius) {
   return new THREE.Points(geometry, material);
 }
 
-function createCardinalSprite(label) {
-  const cnv = document.createElement('canvas');
-  cnv.width = 256;
-  cnv.height = 128;
-  const ctx = cnv.getContext('2d');
-
-  ctx.clearRect(0, 0, cnv.width, cnv.height);
-  ctx.font = 'bold 92px sans-serif';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.lineWidth = 10;
-  ctx.strokeStyle = 'rgba(2, 18, 28, 0.95)';
-  ctx.fillStyle = 'rgba(156, 230, 182, 0.98)';
-  ctx.strokeText(label, cnv.width / 2, cnv.height / 2);
-  ctx.fillText(label, cnv.width / 2, cnv.height / 2);
-
-  const texture = new THREE.CanvasTexture(cnv);
-  texture.colorSpace = THREE.SRGBColorSpace;
-  texture.needsUpdate = true;
-
-  const material = new THREE.SpriteMaterial({
-    map: texture,
-    transparent: true,
-    depthWrite: false,
-  });
-  const sprite = new THREE.Sprite(material);
-  // Match perceived size against celestial labels by distance ratio:
-  // cardinals are near (~22), celestial labels are on the sky dome (~442).
-  const ratio = CARDINAL_RADIUS / SYMBOL_RADIUS;
-  sprite.scale.set(36.0 * ratio, 13.5 * ratio, 1.0);
-  return sprite;
-}
-
 function createTextSprite(label, fillStyle = 'rgba(255,255,255,0.96)', strokeStyle = 'rgba(0,0,0,0.86)') {
   const cnv = document.createElement('canvas');
   cnv.width = 512;
@@ -255,7 +222,7 @@ for (let i = 0; i < 256; i += 1) {
   horizonPoints.push(
     new THREE.Vector3(
       Math.cos(a) * horizonRadius,
-      EYE_HEIGHT_M,
+      0,
       Math.sin(a) * horizonRadius
     )
   );
@@ -272,6 +239,38 @@ const horizonRing = new THREE.LineLoop(
 );
 scene.add(horizonRing);
 
+const horizonTickGeometry = new THREE.BufferGeometry();
+const horizonTicks = new THREE.LineSegments(
+  horizonTickGeometry,
+  new THREE.LineBasicMaterial({
+    color: 0x40a25a,
+    transparent: true,
+    opacity: 0.98,
+    depthTest: false,
+  })
+);
+scene.add(horizonTicks);
+
+function updateHorizonTicksByAngularSize(targetAngularDeg) {
+  // Keep marker length so the apparent size from eye height is targetAngularDeg.
+  const eyeToTickDist = Math.sqrt(horizonRadius * horizonRadius + EYE_HEIGHT_M * EYE_HEIGHT_M);
+  const theta = THREE.MathUtils.degToRad(Math.max(0.05, targetAngularDeg));
+  const tickLen = 2.0 * eyeToTickDist * Math.tan(theta * 0.5);
+  const half = tickLen * 0.5;
+
+  const points = [];
+  for (let i = 0; i < 8; i += 1) {
+    const a = (i / 8) * Math.PI * 2;
+    const c = Math.cos(a);
+    const s = Math.sin(a);
+    points.push(
+      new THREE.Vector3(c * horizonRadius, -half, s * horizonRadius),
+      new THREE.Vector3(c * horizonRadius, +half, s * horizonRadius)
+    );
+  }
+  horizonTickGeometry.setFromPoints(points);
+}
+
 const groundDisc = new THREE.Mesh(
   new THREE.CircleGeometry(70, 96),
   new THREE.MeshBasicMaterial({
@@ -285,31 +284,6 @@ const groundDisc = new THREE.Mesh(
 groundDisc.rotation.x = -Math.PI / 2;
 scene.add(groundDisc);
 
-const d = CARDINAL_RADIUS / Math.sqrt(2);
-const cardinalAnchors = [
-  { label: 'N', x: 0, z: -CARDINAL_RADIUS },
-  { label: 'NE', x: d, z: -d },
-  { label: 'E', x: CARDINAL_RADIUS, z: 0 },
-  { label: 'SE', x: d, z: d },
-  { label: 'S', x: 0, z: CARDINAL_RADIUS },
-  { label: 'SW', x: -d, z: d },
-  { label: 'W', x: -CARDINAL_RADIUS, z: 0 },
-  { label: 'NW', x: -d, z: -d },
-];
-
-for (const anchor of cardinalAnchors) {
-  const pole = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.08, 0.08, 1.0, 12),
-    new THREE.MeshStandardMaterial({ color: 0x4c7f66, roughness: 0.9, metalness: 0.0 })
-  );
-  pole.position.set(anchor.x, 0.5, anchor.z);
-  scene.add(pole);
-
-  const sprite = createCardinalSprite(anchor.label);
-  sprite.position.set(anchor.x, 1.65, anchor.z);
-  scene.add(sprite);
-}
-
 const observer = new Astronomy.Observer(MATSUE.lat, MATSUE.lon, 0);
 const solarSystemGroup = new THREE.Group();
 scene.add(solarSystemGroup);
@@ -318,6 +292,23 @@ const sunSprite = createCircleOutlineSprite('rgba(255, 214, 120, 0.98)');
 const moonSprite = createCircleOutlineSprite('rgba(206, 220, 255, 0.98)');
 solarSystemGroup.add(sunSprite);
 solarSystemGroup.add(moonSprite);
+
+const cardinalDefs = [
+  { label: 'N', az: 0.0 },
+  { label: 'NE', az: 45.0 },
+  { label: 'E', az: 90.0 },
+  { label: 'SE', az: 135.0 },
+  { label: 'S', az: 180.0 },
+  { label: 'SW', az: 225.0 },
+  { label: 'W', az: 270.0 },
+  { label: 'NW', az: 315.0 },
+];
+for (const d of cardinalDefs) {
+  const label = createTextSprite(d.label, 'rgba(156, 230, 182, 0.98)');
+  label.scale.set(36.0, 13.5, 1.0);
+  label.position.copy(altAzToVector(0.0, d.az, SYMBOL_RADIUS));
+  solarSystemGroup.add(label);
+}
 
 const planetDefs = [
   { body: 'Mercury', label: 'Mercury', color: 'rgba(232,232,232,0.98)' },
@@ -448,6 +439,10 @@ function updateSolarSystemMarkers() {
     const deg = angularDiameterDeg(3474.8, moonPos.dist);
     const scale = spriteScaleFromAngularDiameter(deg, SYMBOL_RADIUS);
     moonSprite.scale.set(scale, scale, 1.0);
+    updateHorizonTicksByAngularSize(deg * 2.0);
+  } else {
+    // Fallback: average apparent moon diameter (about 0.52 deg), doubled.
+    updateHorizonTicksByAngularSize(1.04);
   }
 
   for (const planet of planetObjects) {
