@@ -458,6 +458,8 @@ const starMeshes = STAR_LAYERS.map((layer, index) => {
   scene.add(mesh);
   return mesh;
 });
+const equatorialRotation = new THREE.Quaternion();
+const equatorialBasisMatrix = new THREE.Matrix4();
 
 const horizonRadius = 90;
 const horizonPoints = [];
@@ -585,14 +587,15 @@ function raDecToUnitVector(raHours, decDeg) {
 }
 
 const famousStarObjects = FAMOUS_STARS.map((def) => {
-  const direction = raDecToUnitVector(def.raHours, def.decDeg).normalize();
+  const equatorialDirection = raDecToUnitVector(def.raHours, def.decDeg).normalize();
+  const worldDirection = equatorialDirection.clone();
   const label = createTextSprite(def.name, 'rgba(234,242,255,0.98)');
   // Keep same style as planet labels.
   label.scale.set(36.0, 13.5, 1.0);
-  label.position.copy(direction).multiplyScalar(SYMBOL_RADIUS);
+  label.position.copy(worldDirection).multiplyScalar(SYMBOL_RADIUS);
   label.visible = false;
   solarSystemGroup.add(label);
-  return { ...def, direction, label };
+  return { ...def, equatorialDirection, worldDirection, label };
 });
 
 const zenithMarker = createCrossMarkerSprite('rgba(210, 244, 255, 0.96)');
@@ -664,6 +667,36 @@ function rebuildReferenceLines() {
   celestialEquatorLine.computeLineDistances();
 }
 
+function computeEquatorialRotation(when) {
+  const basisXAltAz = raDecToAltAz(0.0, 0.0, when, observer);
+  const basisYAltAz = raDecToAltAz(0.0, 90.0, when, observer);
+  const basisZAltAz = raDecToAltAz(6.0, 0.0, when, observer);
+
+  const basisX = altAzToVector(basisXAltAz.alt, basisXAltAz.az, 1.0).normalize();
+  const basisY = altAzToVector(basisYAltAz.alt, basisYAltAz.az, 1.0).normalize();
+  const basisZ = altAzToVector(basisZAltAz.alt, basisZAltAz.az, 1.0).normalize();
+
+  // Re-orthonormalize to keep rotation stable.
+  basisY.addScaledVector(basisX, -basisX.dot(basisY)).normalize();
+  basisZ.copy(new THREE.Vector3().crossVectors(basisX, basisY)).normalize();
+
+  equatorialBasisMatrix.makeBasis(basisX, basisY, basisZ);
+  equatorialRotation.setFromRotationMatrix(equatorialBasisMatrix);
+}
+
+function updateStarfieldOrientation(when) {
+  computeEquatorialRotation(when);
+
+  for (const mesh of starMeshes) {
+    mesh.quaternion.copy(equatorialRotation);
+  }
+
+  for (const star of famousStarObjects) {
+    star.worldDirection.copy(star.equatorialDirection).applyQuaternion(equatorialRotation).normalize();
+    star.label.position.copy(star.worldDirection).multiplyScalar(SYMBOL_RADIUS);
+  }
+}
+
 function placeBodySprite({ body, sprite, minAlt = -0.8, alwaysVisible = false }) {
   const now = new Date();
   const equ = Astronomy.Equator(body, now, observer, true, true);
@@ -679,6 +712,9 @@ function placeBodySprite({ body, sprite, minAlt = -0.8, alwaysVisible = false })
 }
 
 function updateSolarSystemMarkers() {
+  const now = new Date();
+  updateStarfieldOrientation(now);
+
   const sunPos = placeBodySprite({ body: 'Sun', sprite: sunSprite, alwaysVisible: true });
   const moonPos = placeBodySprite({ body: 'Moon', sprite: moonSprite, alwaysVisible: true });
 
@@ -769,7 +805,7 @@ function updateFamousStarHoverLabels(xrFrame) {
   for (const star of famousStarObjects) {
     star.label.visible = false;
     for (const rayDir of rayDirs) {
-      const dot = rayDir.dot(star.direction);
+      const dot = rayDir.dot(star.worldDirection);
       if (dot > bestDot) {
         bestDot = dot;
         bestStar = star;
