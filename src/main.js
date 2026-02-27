@@ -2,21 +2,23 @@ import * as THREE from 'three';
 import * as Astronomy from 'astronomy-engine';
 import { STAR_LAYERS, STAR_META } from './generated/stars-data.js';
 
-const MATSUE = {
-  lat: 35.465,
-  lon: 133.051,
+const DEFAULT_LOCATION = {
+  name: 'Tokyo',
+  lat: 35.681236,
+  lon: 139.767125,
 };
 
 const EYE_HEIGHT_M = 1.7;
 const SKY_RADIUS = 450;
-const CARDINAL_RADIUS = 22;
 const SYMBOL_RADIUS = SKY_RADIUS - 8;
 const AU_KM = 149597870.7;
 const EARTH_OBLIQUITY_DEG = 23.439291;
+const CITY_INDEX_URL = `${import.meta.env.BASE_URL}data/cities-index.json`;
 
 const canvas = document.getElementById('scene');
 const statusEl = document.getElementById('status');
 const enterVrButton = document.getElementById('enter-vr');
+let locationSummaryText = '';
 
 const renderer = new THREE.WebGLRenderer({
   canvas,
@@ -132,6 +134,48 @@ function createCircleOutlineSprite(strokeStyle) {
   return new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false }));
 }
 
+function createVrSplashSprite(text) {
+  const cnv = document.createElement('canvas');
+  cnv.width = 1024;
+  cnv.height = 256;
+  const ctx = cnv.getContext('2d');
+  ctx.clearRect(0, 0, cnv.width, cnv.height);
+
+  ctx.fillStyle = 'rgba(8, 15, 30, 0.88)';
+  ctx.strokeStyle = 'rgba(150, 189, 240, 0.55)';
+  ctx.lineWidth = 3;
+  const r = 26;
+  ctx.beginPath();
+  ctx.moveTo(r, 0);
+  ctx.lineTo(cnv.width - r, 0);
+  ctx.quadraticCurveTo(cnv.width, 0, cnv.width, r);
+  ctx.lineTo(cnv.width, cnv.height - r);
+  ctx.quadraticCurveTo(cnv.width, cnv.height, cnv.width - r, cnv.height);
+  ctx.lineTo(r, cnv.height);
+  ctx.quadraticCurveTo(0, cnv.height, 0, cnv.height - r);
+  ctx.lineTo(0, r);
+  ctx.quadraticCurveTo(0, 0, r, 0);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+
+  ctx.font = 'bold 72px "Noto Sans", "Noto Sans JP", sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = 'rgba(234, 242, 255, 0.98)';
+  ctx.strokeStyle = 'rgba(2, 10, 22, 0.9)';
+  ctx.lineWidth = 10;
+  ctx.strokeText(text, cnv.width / 2, cnv.height / 2);
+  ctx.fillText(text, cnv.width / 2, cnv.height / 2);
+
+  const texture = new THREE.CanvasTexture(cnv);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.needsUpdate = true;
+  const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false }));
+  sprite.scale.set(1.6, 0.4, 1.0);
+  return sprite;
+}
+
 function altAzToVector(altDeg, azDeg, radius) {
   const alt = THREE.MathUtils.degToRad(altDeg);
   const az = THREE.MathUtils.degToRad(azDeg);
@@ -167,6 +211,80 @@ function skyDiscColorFromSunAltitude(sunAltDeg) {
     lerp(0.06, 0.62, t),
     lerp(0.16, 0.97, t)
   );
+}
+
+let cityIndexPromise = null;
+
+function normalizeCityName(value) {
+  return (value || '').trim().toLowerCase();
+}
+
+function parseLatLonFromUrl(searchParams) {
+  const latText = searchParams.get('lat');
+  const lonText = searchParams.get('lon');
+  if (latText == null || lonText == null) return null;
+  const lat = Number.parseFloat(latText);
+  const lon = Number.parseFloat(lonText);
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+  if (lat < -90 || lat > 90 || lon < -180 || lon > 180) return null;
+  return { name: `${lat.toFixed(4)},${lon.toFixed(4)}`, lat, lon };
+}
+
+async function loadCityIndex() {
+  if (!cityIndexPromise) {
+    cityIndexPromise = fetch(CITY_INDEX_URL, { cache: 'force-cache' })
+      .then((res) => {
+        if (!res.ok) throw new Error(`Failed to load city index: HTTP ${res.status}`);
+        return res.json();
+      })
+      .then((json) => (Array.isArray(json.entries) ? json.entries : []));
+  }
+  return cityIndexPromise;
+}
+
+function pickCity(cities, cityName) {
+  const q = normalizeCityName(cityName);
+  if (!q) return null;
+
+  let best = null;
+  let bestScore = -1;
+
+  for (const row of cities) {
+    const [name, ascii, lat, lon, country, admin1, pop] = row;
+    const n = normalizeCityName(name);
+    const a = normalizeCityName(ascii);
+    let score = -1;
+    if (n === q || a === q) score = 100;
+    else if (n.startsWith(q) || a.startsWith(q)) score = 70;
+    else if (n.includes(q) || a.includes(q)) score = 40;
+    if (score < 0) continue;
+    score += Math.min(30, Math.log10(Math.max(1, Number(pop) || 1)) * 4);
+    if (score > bestScore) {
+      bestScore = score;
+      best = { name: String(name), lat: Number(lat), lon: Number(lon), country: String(country), admin1: String(admin1) };
+    }
+  }
+  return best;
+}
+
+async function resolveLocationFromUrl() {
+  const params = new URLSearchParams(window.location.search);
+  const fromLatLon = parseLatLonFromUrl(params);
+  if (fromLatLon) return { ...fromLatLon, source: 'latlon' };
+
+  const city = params.get('city');
+  if (city && city.trim()) {
+    try {
+      const cities = await loadCityIndex();
+      const found = pickCity(cities, city);
+      if (found) return { ...found, source: 'city' };
+      return { ...DEFAULT_LOCATION, source: 'fallback_city_not_found', requestedCity: city };
+    } catch (_e) {
+      return { ...DEFAULT_LOCATION, source: 'fallback_city_index_error', requestedCity: city };
+    }
+  }
+
+  return { ...DEFAULT_LOCATION, source: 'default' };
 }
 
 function raDecToAltAz(raHours, decDeg, when, observerRef) {
@@ -284,7 +402,8 @@ const groundDisc = new THREE.Mesh(
 groundDisc.rotation.x = -Math.PI / 2;
 scene.add(groundDisc);
 
-const observer = new Astronomy.Observer(MATSUE.lat, MATSUE.lon, 0);
+let activeLocation = { ...DEFAULT_LOCATION, source: 'default' };
+let observer = new Astronomy.Observer(activeLocation.lat, activeLocation.lon, 0);
 const solarSystemGroup = new THREE.Group();
 scene.add(solarSystemGroup);
 
@@ -476,6 +595,8 @@ function updateSolarSystemMarkers() {
 }
 
 let lastSolarUpdateMs = 0;
+let vrSplashSprite = null;
+let vrSplashUntilMs = 0;
 
 let session = null;
 
@@ -511,11 +632,22 @@ async function prepareVrButton() {
       session = nextSession;
       enterVrButton.textContent = 'Exit VR';
       setStatus('Immersive VR session started');
+      if (vrSplashSprite) {
+        scene.remove(vrSplashSprite);
+        vrSplashSprite = null;
+      }
+      vrSplashSprite = createVrSplashSprite(locationSummaryText || activeLocation.name);
+      scene.add(vrSplashSprite);
+      vrSplashUntilMs = performance.now() + 3000;
 
       nextSession.addEventListener('end', () => {
         session = null;
         enterVrButton.textContent = 'Enter VR';
         setStatus('Desktop preview');
+        if (vrSplashSprite) {
+          scene.remove(vrSplashSprite);
+          vrSplashSprite = null;
+        }
       });
     } catch (error) {
       setStatus(`Failed to start VR (${error.message})`);
@@ -563,11 +695,51 @@ renderer.setAnimationLoop(() => {
     solarSystemGroup.position.copy(sky.position);
     groundDisc.position.copy(sky.position);
     groundDisc.position.y -= EYE_HEIGHT_M;
+
+    if (vrSplashSprite) {
+      if (nowMs > vrSplashUntilMs) {
+        scene.remove(vrSplashSprite);
+        vrSplashSprite = null;
+      } else {
+        const headPos = new THREE.Vector3().setFromMatrixPosition(xrCam.matrixWorld);
+        const headQuat = new THREE.Quaternion().setFromRotationMatrix(xrCam.matrixWorld);
+        const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(headQuat).normalize();
+        vrSplashSprite.position.copy(headPos).add(forward.multiplyScalar(1.8));
+        vrSplashSprite.quaternion.copy(headQuat);
+      }
+    }
   }
 
   renderer.render(scene, camera);
 });
 
-setStatus(`Desktop preview (Matsue ${MATSUE.lat.toFixed(3)}N, ${MATSUE.lon.toFixed(3)}E / North facing / stars: ${STAR_META.usedRows})`);
-updateSolarSystemMarkers();
+async function initializeLocation() {
+  activeLocation = await resolveLocationFromUrl();
+  observer = new Astronomy.Observer(activeLocation.lat, activeLocation.lon, 0);
+  const sourceTag = (() => {
+    if (activeLocation.source === 'city') return `city:${activeLocation.name}`;
+    if (activeLocation.source === 'latlon') return 'lat/lon';
+    if (activeLocation.source === 'fallback_city_not_found') {
+      return `city not found ('${activeLocation.requestedCity}') -> default`;
+    }
+    if (activeLocation.source === 'fallback_city_index_error') {
+      return `city lookup error ('${activeLocation.requestedCity}') -> default`;
+    }
+    return 'default';
+  })();
+  setStatus(
+    `Desktop preview (${activeLocation.name} ${activeLocation.lat.toFixed(3)}N, ${activeLocation.lon.toFixed(3)}E / ${sourceTag} / stars: ${STAR_META.usedRows})`,
+  );
+  if (activeLocation.source === 'fallback_city_not_found') {
+    locationSummaryText = `City '${activeLocation.requestedCity}' not found. Using default: ${activeLocation.name} (${activeLocation.lat.toFixed(3)}, ${activeLocation.lon.toFixed(3)})`;
+  } else if (activeLocation.source === 'fallback_city_index_error') {
+    locationSummaryText = `City lookup error for '${activeLocation.requestedCity}'. Using default: ${activeLocation.name} (${activeLocation.lat.toFixed(3)}, ${activeLocation.lon.toFixed(3)})`;
+  } else {
+    locationSummaryText = `${activeLocation.name} (${activeLocation.lat.toFixed(3)}, ${activeLocation.lon.toFixed(3)})`;
+  }
+
+  updateSolarSystemMarkers();
+}
+
+initializeLocation();
 prepareVrButton();

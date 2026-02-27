@@ -17,8 +17,11 @@ You can experience the app by opening the URL above.
 
 - `src/`: app source code
 - `data/stars.csv`: input star catalog
+- `data/cities1000.txt`: input city catalog (GeoNames-derived)
 - `scripts/generate-stars-data.mjs`: generator for `src/generated/stars-data.js`
+- `scripts/generate-cities-data.mjs`: generator for `public/data/cities-index.json`
 - `src/generated/`: generated files (can be deleted safely)
+- `public/data/cities-index.json`: generated city index for lazy loading
 - `dist/`: build output
 
 ## Build (when `src/generated/` does NOT exist)
@@ -40,10 +43,12 @@ npm run build
 `npm run build` automatically runs `prebuild`, which regenerates:
 
 - `src/generated/stars-data.js`
+- `public/data/cities-index.json`
 
 from:
 
 - `data/stars.csv`
+- `data/cities1000.txt`
 
 Then Vite builds the app into `dist/`.
 
@@ -54,6 +59,19 @@ npm run dev
 ```
 
 `npm run dev` also regenerates `src/generated/stars-data.js` via `predev`.
+
+## URL Parameters
+
+You can control observer location from URL:
+
+- `?lat=35.465&lon=133.051`
+- `?city=Tokyo`
+
+Priority:
+
+1. `lat` + `lon` (if valid)
+2. `city` (lazy-loaded city index lookup)
+3. default (`Matsue`)
 
 ## Notes
 
@@ -74,3 +92,5 @@ Rule:
 
 - If you change `data/stars.csv` or `scripts/generate-stars-data.mjs`,
   regenerate and commit `src/generated/stars-data.js` in the same change.
+- If you change `data/cities1000.txt` or `scripts/generate-cities-data.mjs`,
+  regenerate and commit `public/data/cities-index.json` in the same change.
