@@ -200,18 +200,76 @@ function spriteScaleFromAngularDiameter(angularDeg, radius) {
   return Math.max(2.4, diameter * 1.8);
 }
 
-function lerp(a, b, t) {
-  return a + (b - a) * t;
-}
+function createSkyMaterial() {
+  return new THREE.ShaderMaterial({
+    side: THREE.BackSide,
+    depthWrite: false,
+    uniforms: {
+      uSunDir: { value: new THREE.Vector3(0, 1, 0) },
+      uSunAltDeg: { value: -90.0 },
+      uTurbidity: { value: 4.0 },
+    },
+    vertexShader: `
+      varying vec3 vDir;
+      void main() {
+        vDir = normalize(position);
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }
+    `,
+    fragmentShader: `
+      varying vec3 vDir;
+      uniform vec3 uSunDir;
+      uniform float uSunAltDeg;
+      uniform float uTurbidity;
 
-function skyDiscColorFromSunAltitude(sunAltDeg) {
-  // Very light tint only: dark blue at night -> soft sky blue at daytime.
-  const t = THREE.MathUtils.clamp((sunAltDeg + 8.0) / 40.0, 0.0, 1.0);
-  return new THREE.Color(
-    lerp(0.03, 0.36, t),
-    lerp(0.06, 0.62, t),
-    lerp(0.16, 0.97, t)
-  );
+      float luma(vec3 c) {
+        return dot(c, vec3(0.299, 0.587, 0.114));
+      }
+
+      vec3 softClipLuma(vec3 color, float maxLuma) {
+        float y = luma(color);
+        if (y <= 1e-6 || y <= maxLuma) return color;
+        return color * (maxLuma / y);
+      }
+
+      void main() {
+        vec3 dir = normalize(vDir);
+        vec3 sunDir = normalize(uSunDir);
+
+        float tau = clamp((uTurbidity - 2.0) / 8.0, 0.0, 1.0);
+        float viewAltDeg = degrees(asin(clamp(dir.y, -1.0, 1.0)));
+        float tAlt = clamp(viewAltDeg / 90.0, 0.0, 1.0);
+        float sunUp = smoothstep(-8.0, 6.0, uSunAltDeg);
+        float twilight = smoothstep(-10.0, 0.0, uSunAltDeg);
+
+        vec3 horizonDay = vec3(0.98, 0.70, 0.45);
+        vec3 zenithDay = vec3(0.18, 0.42, 0.93);
+        vec3 base = mix(horizonDay, zenithDay, tAlt);
+
+        float haze = (0.22 + 0.48 * (1.0 - tAlt)) * (0.65 + 0.55 * tau);
+        base = mix(base, vec3(1.0), haze);
+
+        float sunFacing = max(0.0, dot(dir, sunDir));
+        float glow = pow(sunFacing, 1.9 - 0.55 * tau);
+        vec3 sunTint = mix(vec3(1.0, 0.82, 0.58), vec3(1.0, 0.92, 0.78), tau);
+        vec3 color = base + sunTint * (0.52 * glow * sunUp);
+
+        float anti = max(0.0, dot(dir, -sunDir));
+        float antiBoost = pow(anti, 2.2);
+        color += vec3(0.06, 0.10, 0.20) * (0.24 * antiBoost * sunUp);
+
+        vec3 night = vec3(0.01, 0.02, 0.05);
+        color = mix(night, color, twilight);
+        color = mix(vec3(0.0), color, 0.1);
+
+        float maxLuma = 0.28 + 0.20 * sunUp;
+        color = softClipLuma(color, maxLuma);
+        color = clamp(color, 0.0, 1.0);
+
+        gl_FragColor = vec4(color, 1.0);
+      }
+    `,
+  });
 }
 
 let cityIndexPromise = null;
@@ -353,9 +411,10 @@ function buildLineOnSky(pointCount, pointBuilder, radius, material, closeLoop = 
   return line;
 }
 
+const skyMaterial = createSkyMaterial();
 const sky = new THREE.Mesh(
   new THREE.SphereGeometry(SKY_RADIUS, 96, 64),
-  new THREE.MeshBasicMaterial({ color: 0x060b16, side: THREE.BackSide, depthWrite: false })
+  skyMaterial
 );
 sky.position.set(0, EYE_HEIGHT_M, 0);
 scene.add(sky);
@@ -491,20 +550,6 @@ nadirMarker.scale.set(4.2, 4.2, 1.0);
 nadirMarker.position.set(0, -SYMBOL_RADIUS, 0);
 solarSystemGroup.add(nadirMarker);
 
-const skyColorDisc = new THREE.Mesh(
-  new THREE.CircleGeometry(260, 96),
-  new THREE.MeshBasicMaterial({
-    color: 0x7fb8ff,
-    transparent: true,
-    opacity: 0.02,
-    depthWrite: false,
-    side: THREE.DoubleSide,
-  })
-);
-skyColorDisc.rotation.x = -Math.PI / 2;
-skyColorDisc.position.set(0, SYMBOL_RADIUS - 1.5, 0);
-solarSystemGroup.add(skyColorDisc);
-
 const eclipticLine = buildLineOnSky(
   360,
   (t) => {
@@ -586,11 +631,11 @@ function updateSolarSystemMarkers() {
     const deg = angularDiameterDeg(1392700.0, sunPos.dist);
     const scale = spriteScaleFromAngularDiameter(deg, SYMBOL_RADIUS);
     sunSprite.scale.set(scale, scale, 1.0);
-
-    const skyColor = skyDiscColorFromSunAltitude(sunPos.altitude);
-    const skyAlpha = lerp(0.012, 0.06, THREE.MathUtils.clamp((sunPos.altitude + 8.0) / 40.0, 0.0, 1.0));
-    skyColorDisc.material.color.copy(skyColor);
-    skyColorDisc.material.opacity = skyAlpha;
+    const sunDir = altAzToVector(sunPos.altitude, sunPos.azimuth, 1.0).normalize();
+    skyMaterial.uniforms.uSunDir.value.copy(sunDir);
+    skyMaterial.uniforms.uSunAltDeg.value = sunPos.altitude;
+  } else {
+    skyMaterial.uniforms.uSunAltDeg.value = -90.0;
   }
 
   if (moonSprite.visible && moonPos && Number.isFinite(moonPos.dist)) {
