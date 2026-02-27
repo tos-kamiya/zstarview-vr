@@ -21,6 +21,7 @@ const renderer = new THREE.WebGLRenderer({
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.xr.enabled = true;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x030711);
@@ -45,60 +46,83 @@ function mulberry32(seed) {
   };
 }
 
-function generateSkyTexture() {
-  const width = 2048;
-  const height = 1024;
-  const cnv = document.createElement('canvas');
-  cnv.width = width;
-  cnv.height = height;
-  const ctx = cnv.getContext('2d');
+function createStarfield(radius, count, seed, options = {}) {
+  const rng = mulberry32(seed);
+  const positions = new Float32Array(count * 3);
+  const colors = new Float32Array(count * 3);
+  const {
+    rBase = 0.78,
+    gBase = 0.82,
+    bBase = 0.92,
+    brightnessMin = 0.3,
+    brightnessMax = 1.0,
+    jitter = 0.12,
+  } = options;
 
-  const grad = ctx.createLinearGradient(0, 0, 0, height);
-  grad.addColorStop(0, '#0a1020');
-  grad.addColorStop(0.45, '#060b16');
-  grad.addColorStop(1, '#02050b');
-  ctx.fillStyle = grad;
-  ctx.fillRect(0, 0, width, height);
+  for (let i = 0; i < count; i += 1) {
+    // Uniform distribution over the sphere to avoid polar distortion.
+    const u = rng();
+    const v = rng();
+    const theta = 2.0 * Math.PI * u;
+    const z = 2.0 * v - 1.0;
+    const t = Math.sqrt(1.0 - z * z);
+    const x = t * Math.cos(theta);
+    const y = z;
+    const zAxis = t * Math.sin(theta);
 
-  const rng = mulberry32(20260228);
+    const idx = i * 3;
+    positions[idx] = x * radius;
+    positions[idx + 1] = y * radius;
+    positions[idx + 2] = zAxis * radius;
 
-  for (let i = 0; i < 5200; i += 1) {
-    const x = rng() * width;
-    const y = rng() * height;
-
-    // Denser near a rough diagonal "Milky Way" belt.
-    const belt = Math.abs((y / height) - (0.5 + 0.12 * Math.sin((x / width) * Math.PI * 2.0)));
-    const keepChance = belt < 0.1 ? 0.95 : 0.35;
-    if (rng() > keepChance) continue;
-
-    const base = rng();
-    const r = base < 0.03 ? 1.8 : base < 0.18 ? 1.2 : 0.7;
-    const alpha = base < 0.06 ? 0.95 : 0.68 + rng() * 0.22;
-
-    const hueJitter = (rng() - 0.5) * 10;
-    const sat = 16 + rng() * 30;
-    const light = 74 + rng() * 22;
-    ctx.fillStyle = `hsla(${220 + hueJitter}, ${sat}%, ${light}%, ${alpha})`;
-    ctx.beginPath();
-    ctx.arc(x, y, r, 0, Math.PI * 2);
-    ctx.fill();
+    const b = brightnessMin + rng() * (brightnessMax - brightnessMin);
+    colors[idx] = Math.min(1.0, Math.max(0.0, (rBase + (rng() - 0.5) * jitter) * b));
+    colors[idx + 1] = Math.min(1.0, Math.max(0.0, (gBase + (rng() - 0.5) * jitter) * b));
+    colors[idx + 2] = Math.min(1.0, Math.max(0.0, (bBase + (rng() - 0.5) * jitter) * b));
   }
 
-  const texture = new THREE.CanvasTexture(cnv);
-  texture.colorSpace = THREE.SRGBColorSpace;
-  texture.wrapS = THREE.RepeatWrapping;
-  texture.wrapT = THREE.ClampToEdgeWrapping;
-  texture.needsUpdate = true;
-  return texture;
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+
+  const material = new THREE.PointsMaterial({
+    size: options.size ?? 1.2,
+    sizeAttenuation: false,
+    vertexColors: true,
+    transparent: true,
+    opacity: options.opacity ?? 0.95,
+    depthWrite: false,
+  });
+
+  return new THREE.Points(geometry, material);
 }
 
-const skyTexture = generateSkyTexture();
 const sky = new THREE.Mesh(
   new THREE.SphereGeometry(SKY_RADIUS, 96, 64),
-  new THREE.MeshBasicMaterial({ map: skyTexture, side: THREE.BackSide, depthWrite: false })
+  new THREE.MeshBasicMaterial({ color: 0x060b16, side: THREE.BackSide, depthWrite: false })
 );
 sky.position.set(0, EYE_HEIGHT_M, 0);
 scene.add(sky);
+
+const starsDim = createStarfield(SKY_RADIUS - 4, 9000, 20260301, {
+  size: 1.05,
+  opacity: 0.55,
+  brightnessMin: 0.2,
+  brightnessMax: 0.75,
+  jitter: 0.07,
+});
+const starsBright = createStarfield(SKY_RADIUS - 5, 1400, 20260302, {
+  size: 2.2,
+  opacity: 0.98,
+  rBase: 0.84,
+  gBase: 0.88,
+  bBase: 0.98,
+  brightnessMin: 0.72,
+  brightnessMax: 1.0,
+  jitter: 0.14,
+});
+scene.add(starsDim);
+scene.add(starsBright);
 
 const ground = new THREE.Mesh(
   new THREE.CircleGeometry(GROUND_RADIUS, 96),
@@ -157,6 +181,7 @@ async function prepareVrButton() {
       const nextSession = await navigator.xr.requestSession('immersive-vr', {
         optionalFeatures: ['local-floor'],
       });
+      renderer.xr.setFramebufferScaleFactor(1.25);
       renderer.xr.setSession(nextSession);
       session = nextSession;
       enterVrButton.textContent = 'Exit VR';
@@ -187,15 +212,18 @@ window.addEventListener('resize', onResize);
 camera.lookAt(0, EYE_HEIGHT_M, -10);
 
 renderer.setAnimationLoop(() => {
-  // Keep the sky centered around the observer in desktop mode.
+  // Keep sky and stars centered around the observer.
   if (!renderer.xr.isPresenting) {
     sky.position.copy(camera.position);
+    starsDim.position.copy(camera.position);
+    starsBright.position.copy(camera.position);
   }
 
-  // In VR, align sky center with XR camera world position to keep observer at dome center.
   if (renderer.xr.isPresenting) {
     const xrCam = renderer.xr.getCamera();
     sky.position.setFromMatrixPosition(xrCam.matrixWorld);
+    starsDim.position.copy(sky.position);
+    starsBright.position.copy(sky.position);
   }
 
   renderer.render(scene, camera);
