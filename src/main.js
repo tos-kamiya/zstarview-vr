@@ -12,6 +12,7 @@ const SKY_RADIUS = 450;
 const CARDINAL_RADIUS = 22;
 const SYMBOL_RADIUS = SKY_RADIUS - 8;
 const AU_KM = 149597870.7;
+const EARTH_OBLIQUITY_DEG = 23.439291;
 
 const canvas = document.getElementById('scene');
 const statusEl = document.getElementById('status');
@@ -163,6 +164,38 @@ function spriteScaleFromAngularDiameter(angularDeg, radius) {
   return Math.max(2.4, diameter * 1.8);
 }
 
+function raDecToAltAz(raHours, decDeg, when, observerRef) {
+  const hor = Astronomy.Horizon(when, observerRef, raHours, decDeg, 'normal');
+  return { alt: hor.altitude, az: hor.azimuth };
+}
+
+function eclipticLonToRaDec(lonDeg) {
+  const lon = THREE.MathUtils.degToRad(lonDeg);
+  const eps = THREE.MathUtils.degToRad(EARTH_OBLIQUITY_DEG);
+  const x = Math.cos(lon);
+  const y = Math.sin(lon) * Math.cos(eps);
+  const z = Math.sin(lon) * Math.sin(eps);
+  const raRad = Math.atan2(y, x);
+  const raHours = (((THREE.MathUtils.radToDeg(raRad) / 15.0) % 24) + 24) % 24;
+  const decDeg = THREE.MathUtils.radToDeg(Math.asin(z));
+  return { raHours, decDeg };
+}
+
+function buildLineOnSky(pointCount, pointBuilder, radius, material, closeLoop = true) {
+  const points = [];
+  for (let i = 0; i < pointCount; i += 1) {
+    const t = i / pointCount;
+    const { alt, az } = pointBuilder(t);
+    points.push(altAzToVector(alt, az, radius));
+  }
+  const geometry = new THREE.BufferGeometry().setFromPoints(points);
+  const line = closeLoop
+    ? new THREE.LineLoop(geometry, material)
+    : new THREE.Line(geometry, material);
+  line.computeLineDistances();
+  return line;
+}
+
 const sky = new THREE.Mesh(
   new THREE.SphereGeometry(SKY_RADIUS, 96, 64),
   new THREE.MeshBasicMaterial({ color: 0x060b16, side: THREE.BackSide, depthWrite: false })
@@ -249,6 +282,65 @@ const planetSprites = planetDefs.map((def) => {
   return { ...def, sprite };
 });
 
+const eclipticLine = buildLineOnSky(
+  360,
+  (t) => {
+    const lon = t * 360.0;
+    const { raHours, decDeg } = eclipticLonToRaDec(lon);
+    return raDecToAltAz(raHours, decDeg, new Date(), observer);
+  },
+  SYMBOL_RADIUS - 1,
+  new THREE.LineDashedMaterial({
+    color: 0xffd24a,
+    dashSize: 3.8,
+    gapSize: 2.6,
+    transparent: true,
+    opacity: 0.9,
+    depthTest: false,
+  })
+);
+solarSystemGroup.add(eclipticLine);
+
+const celestialEquatorLine = buildLineOnSky(
+  240,
+  (t) => {
+    const ra = t * 24.0;
+    return raDecToAltAz(ra, 0.0, new Date(), observer);
+  },
+  SYMBOL_RADIUS - 1,
+  new THREE.LineDashedMaterial({
+    color: 0x96a0ac,
+    dashSize: 6.6,
+    gapSize: 6.8,
+    transparent: true,
+    opacity: 0.78,
+    depthTest: false,
+  })
+);
+solarSystemGroup.add(celestialEquatorLine);
+
+function rebuildReferenceLines() {
+  const now = new Date();
+  const eclPts = [];
+  for (let i = 0; i < 360; i += 1) {
+    const lon = (i / 360) * 360.0;
+    const { raHours, decDeg } = eclipticLonToRaDec(lon);
+    const { alt, az } = raDecToAltAz(raHours, decDeg, now, observer);
+    eclPts.push(altAzToVector(alt, az, SYMBOL_RADIUS - 1));
+  }
+  eclipticLine.geometry.setFromPoints(eclPts);
+  eclipticLine.computeLineDistances();
+
+  const eqPts = [];
+  for (let i = 0; i < 240; i += 1) {
+    const ra = (i / 240) * 24.0;
+    const { alt, az } = raDecToAltAz(ra, 0.0, now, observer);
+    eqPts.push(altAzToVector(alt, az, SYMBOL_RADIUS - 1));
+  }
+  celestialEquatorLine.geometry.setFromPoints(eqPts);
+  celestialEquatorLine.computeLineDistances();
+}
+
 function placeBodySprite({ body, sprite, minAlt = -0.8 }) {
   const now = new Date();
   const equ = Astronomy.Equator(body, now, observer, true, true);
@@ -282,6 +374,8 @@ function updateSolarSystemMarkers() {
   for (const planet of planetSprites) {
     placeBodySprite({ body: planet.body, sprite: planet.sprite, minAlt: -0.8 });
   }
+
+  rebuildReferenceLines();
 }
 
 let lastSolarUpdateMs = 0;
