@@ -333,6 +333,11 @@ zenithMarker.scale.set(4.2, 4.2, 1.0);
 zenithMarker.position.set(0, SYMBOL_RADIUS, 0);
 solarSystemGroup.add(zenithMarker);
 
+const nadirMarker = createCrossMarkerSprite('rgba(210, 244, 255, 0.96)');
+nadirMarker.scale.set(4.2, 4.2, 1.0);
+nadirMarker.position.set(0, -SYMBOL_RADIUS, 0);
+solarSystemGroup.add(nadirMarker);
+
 const skyColorDisc = new THREE.Mesh(
   new THREE.CircleGeometry(260, 96),
   new THREE.MeshBasicMaterial({
@@ -439,9 +444,20 @@ function updateSolarSystemMarkers() {
     const deg = angularDiameterDeg(3474.8, moonPos.dist);
     const scale = spriteScaleFromAngularDiameter(deg, SYMBOL_RADIUS);
     moonSprite.scale.set(scale, scale, 1.0);
+    for (const planet of planetObjects) {
+      planet.marker.scale.set(scale, scale, 1.0);
+    }
+    zenithMarker.scale.set(scale, scale, 1.0);
+    nadirMarker.scale.set(scale, scale, 1.0);
     updateHorizonTicksByAngularSize(deg * 2.0);
   } else {
     // Fallback: average apparent moon diameter (about 0.52 deg), doubled.
+    const fallbackScale = spriteScaleFromAngularDiameter(0.52, SYMBOL_RADIUS);
+    for (const planet of planetObjects) {
+      planet.marker.scale.set(fallbackScale, fallbackScale, 1.0);
+    }
+    zenithMarker.scale.set(fallbackScale, fallbackScale, 1.0);
+    nadirMarker.scale.set(fallbackScale, fallbackScale, 1.0);
     updateHorizonTicksByAngularSize(1.04);
   }
 
