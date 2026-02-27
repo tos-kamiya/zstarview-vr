@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ZStarView VR Prototype</title>
+    <style>
+      :root {
+        --bg: #030711;
+        --panel: rgba(4, 10, 22, 0.72);
+        --line: rgba(127, 156, 214, 0.45);
+        --text: #e4eeff;
+        --muted: #93a8cf;
+        --accent: #9cd8ff;
+      }
+
+      html,
+      body {
+        margin: 0;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background: var(--bg);
+        color: var(--text);
+        font-family: "Noto Sans JP", "Hiragino Sans", "Yu Gothic UI", sans-serif;
+      }
+
+      #app {
+        position: fixed;
+        inset: 0;
+      }
+
+      #scene {
+        width: 100%;
+        height: 100%;
+        display: block;
+      }
+
+      #hud {
+        position: fixed;
+        top: 12px;
+        left: 12px;
+        right: 12px;
+        max-width: 500px;
+        padding: 12px 14px;
+        border: 1px solid var(--line);
+        background: var(--panel);
+        backdrop-filter: blur(3px);
+        border-radius: 12px;
+      }
+
+      #hud h1 {
+        margin: 0;
+        font-size: 16px;
+        letter-spacing: 0.04em;
+      }
+
+      #hud p {
+        margin: 6px 0 0;
+        font-size: 13px;
+        color: var(--muted);
+      }
+
+      #actions {
+        margin-top: 10px;
+        display: flex;
+        gap: 8px;
+      }
+
+      button {
+        border: 1px solid rgba(145, 210, 255, 0.55);
+        border-radius: 999px;
+        padding: 7px 14px;
+        background: rgba(26, 59, 100, 0.58);
+        color: var(--text);
+        font-size: 12px;
+        letter-spacing: 0.03em;
+        cursor: pointer;
+      }
+
+      button:disabled {
+        cursor: not-allowed;
+        opacity: 0.5;
+      }
+
+      #status {
+        margin-top: 8px;
+        font-size: 12px;
+        color: var(--accent);
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app">
+      <canvas id="scene"></canvas>
+      <div id="hud">
+        <h1>ZStarView VR (暫定プロトタイプ)</h1>
+        <p>観測地点: 松江市 (35.465N, 133.051E) / 初期向き: 北</p>
+        <p>表示: 地面 + 固定天球（惑星・太陽・月なし）</p>
+        <div id="actions">
+          <button id="enter-vr">Enter VR</button>
+        </div>
+        <div id="status">Status: Desktop preview</div>
+      </div>
+    </div>
+    <script type="module" src="./src/main.js"></script>
+  </body>
+</html>

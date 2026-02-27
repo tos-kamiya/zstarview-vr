@@ -1,0 +1,15 @@
+{
+  "name": "zstarview-vr",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "dev": "vite --host",
+    "build": "vite build",
+    "preview": "vite preview --host"
+  },
+  "dependencies": {
+    "@openai/codex": "^0.106.0",
+    "three": "^0.183.1",
+    "vite": "^7.3.1"
+  }
+}
