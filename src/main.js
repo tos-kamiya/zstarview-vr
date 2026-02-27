@@ -188,6 +188,20 @@ function spriteScaleFromAngularDiameter(angularDeg, radius) {
   return Math.max(2.4, diameter * 1.8);
 }
 
+function lerp(a, b, t) {
+  return a + (b - a) * t;
+}
+
+function skyDiscColorFromSunAltitude(sunAltDeg) {
+  // Very light tint only: dark blue at night -> soft sky blue at daytime.
+  const t = THREE.MathUtils.clamp((sunAltDeg + 8.0) / 40.0, 0.0, 1.0);
+  return new THREE.Color(
+    lerp(0.03, 0.36, t),
+    lerp(0.06, 0.62, t),
+    lerp(0.16, 0.97, t)
+  );
+}
+
 function raDecToAltAz(raHours, decDeg, when, observerRef) {
   const hor = Astronomy.Horizon(when, observerRef, raHours, decDeg, 'normal');
   return { alt: hor.altitude, az: hor.azimuth };
@@ -328,6 +342,20 @@ zenithMarker.scale.set(4.2, 4.2, 1.0);
 zenithMarker.position.set(0, SYMBOL_RADIUS, 0);
 solarSystemGroup.add(zenithMarker);
 
+const skyColorDisc = new THREE.Mesh(
+  new THREE.CircleGeometry(260, 96),
+  new THREE.MeshBasicMaterial({
+    color: 0x7fb8ff,
+    transparent: true,
+    opacity: 0.02,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+  })
+);
+skyColorDisc.rotation.x = -Math.PI / 2;
+skyColorDisc.position.set(0, SYMBOL_RADIUS - 1.5, 0);
+solarSystemGroup.add(skyColorDisc);
+
 const eclipticLine = buildLineOnSky(
   360,
   (t) => {
@@ -409,6 +437,11 @@ function updateSolarSystemMarkers() {
     const deg = angularDiameterDeg(1392700.0, sunPos.dist);
     const scale = spriteScaleFromAngularDiameter(deg, SYMBOL_RADIUS);
     sunSprite.scale.set(scale, scale, 1.0);
+
+    const skyColor = skyDiscColorFromSunAltitude(sunPos.altitude);
+    const skyAlpha = lerp(0.012, 0.06, THREE.MathUtils.clamp((sunPos.altitude + 8.0) / 40.0, 0.0, 1.0));
+    skyColorDisc.material.color.copy(skyColor);
+    skyColorDisc.material.opacity = skyAlpha;
   }
 
   if (moonSprite.visible && moonPos && Number.isFinite(moonPos.dist)) {
