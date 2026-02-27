@@ -3,7 +3,9 @@
   "private": true,
   "version": "0.1.0",
   "scripts": {
+    "predev": "node scripts/generate-stars-data.mjs",
     "dev": "vite --host",
+    "prebuild": "node scripts/generate-stars-data.mjs",
     "build": "vite build",
     "preview": "vite preview --host"
   },
