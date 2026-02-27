@@ -1,12 +1,33 @@
 # zstarview-vr
 
-WebVR prototype of a sky viewer around Matsue, Japan.
+WebVR prototype of a sky viewer (default location: Tokyo, Japan).
 
 Try it on GitHub Pages (for Quest 3 and other supported devices/browsers):
 
 - https://tos-kamiya.github.io/zstarview-vr/
 
 You can experience the app by opening the URL above.
+
+## Quick Usage
+
+1. Open:
+   - https://tos-kamiya.github.io/zstarview-vr/
+2. Optionally specify location in URL:
+   - `?lat=35.465&lon=133.051`
+   - `?city=Tokyo`
+   - `?city=Matsue&country=JP`
+3. Start VR:
+   - Press `Enter VR`.
+   - A location splash appears in front of the user for about 3 seconds.
+
+Location resolution priority:
+
+1. `lat` + `lon` (if valid)
+2. `city` (lazy-loaded city index lookup)
+3. default (`Tokyo`)
+
+If `city` is not found (or city index loading fails), the app falls back to default (`Tokyo`) and explicitly shows the fallback reason in status/splash text.
+If `country` is also specified, city lookup is filtered by that country code (ISO 3166-1 alpha-2, e.g. `JP`, `US`).
 
 ## Requirements
 
@@ -19,9 +40,11 @@ You can experience the app by opening the URL above.
 - `data/stars.csv`: input star catalog
 - `data/cities1000.txt`: input city catalog (GeoNames-derived)
 - `scripts/generate-stars-data.mjs`: generator for `src/generated/stars-data.js`
-- `scripts/generate-cities-data.mjs`: generator for `public/data/cities-index.json`
+- `scripts/generate-cities-data.mjs`: generator for `public/data/cities-index-v2.json`
+- `scripts/generate-cities-gzip.mjs`: generator for `public/data/cities-index-v2.json.gz`
 - `src/generated/`: generated files (can be deleted safely)
-- `public/data/cities-index.json`: generated city index for lazy loading
+- `public/data/cities-index-v2.json`: generated city index for lazy loading
+- `public/data/cities-index-v2.json.gz`: gzip version loaded by browser and decompressed in JS
 - `dist/`: build output
 
 ## Build (when `src/generated/` does NOT exist)
@@ -43,7 +66,8 @@ npm run build
 `npm run build` automatically runs `prebuild`, which regenerates:
 
 - `src/generated/stars-data.js`
-- `public/data/cities-index.json`
+- `public/data/cities-index-v2.json`
+- `public/data/cities-index-v2.json.gz`
 
 from:
 
@@ -59,6 +83,7 @@ npm run dev
 ```
 
 `npm run dev` also regenerates `src/generated/stars-data.js` via `predev`.
+`predev` regenerates both star and city generated data files.
 
 ## URL Parameters
 
@@ -66,12 +91,27 @@ You can control observer location from URL:
 
 - `?lat=35.465&lon=133.051`
 - `?city=Tokyo`
+- `?city=Matsue&country=JP`
 
-Priority:
+Notes:
 
-1. `lat` + `lon` (if valid)
-2. `city` (lazy-loaded city index lookup)
-3. default (`Matsue`)
+- `country` is used only with `city` lookup.
+- `country` must be a 2-letter country code (case-insensitive), e.g. `jp`, `JP`.
+
+## Compression (Client-side `.gz`)
+
+The app first requests `public/data/cities-index-v2.json.gz` and decompresses it in JavaScript using `DecompressionStream('gzip')`.
+If that fails (unsupported browser or missing `.gz`), it falls back to `cities-index-v2.json`.
+
+This means server-side gzip settings are optional for city index loading.
+
+Quick check after deploy:
+
+```bash
+curl -I https://YOUR_HOST/zstarview-vr/data/cities-index-v2.json.gz
+```
+
+Expected: HTTP 200 and a non-zero `Content-Length`.
 
 ## Notes
 
@@ -93,4 +133,5 @@ Rule:
 - If you change `data/stars.csv` or `scripts/generate-stars-data.mjs`,
   regenerate and commit `src/generated/stars-data.js` in the same change.
 - If you change `data/cities1000.txt` or `scripts/generate-cities-data.mjs`,
-  regenerate and commit `public/data/cities-index.json` in the same change.
+  regenerate and commit `public/data/cities-index-v2.json` in the same change.
+- If you change city generator scripts, also regenerate and commit `public/data/cities-index-v2.json.gz`.

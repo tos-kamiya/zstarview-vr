@@ -1,0 +1,13 @@
+# Compression for static assets.
+# Upload dist/ contents including this file to enable gzip on Apache hosts.
+
+<IfModule mod_deflate.c>
+  AddOutputFilterByType DEFLATE text/plain text/html text/css text/javascript application/javascript application/x-javascript application/json application/xml image/svg+xml
+</IfModule>
+
+# Keep pre-compressed files from being recompressed.
+<IfModule mod_headers.c>
+  <FilesMatch "\\.(?:css|js|mjs|json|svg|txt|html)$">
+    Header append Vary Accept-Encoding
+  </FilesMatch>
+</IfModule>

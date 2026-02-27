@@ -3,10 +3,9 @@ import { resolve, dirname } from 'node:path';
 
 const ROOT = process.cwd();
 const inputPath = resolve(ROOT, 'data/cities1000.txt');
-const outputPath = resolve(ROOT, 'public/data/cities-index.json');
+const outputPath = resolve(ROOT, 'public/data/cities-index-v2.json');
 
 const MIN_POPULATION = 5000;
-const MAX_ENTRIES = 40000;
 
 function parseIntSafe(text) {
   const n = Number.parseInt(text, 10);
@@ -46,7 +45,7 @@ for (const line of lines) {
 }
 
 rows.sort((a, b) => b[6] - a[6]);
-const limited = rows.slice(0, MAX_ENTRIES);
+const limited = rows;
 
 mkdirSync(dirname(outputPath), { recursive: true });
 writeFileSync(

@@ -13,7 +13,8 @@ const SKY_RADIUS = 450;
 const SYMBOL_RADIUS = SKY_RADIUS - 8;
 const AU_KM = 149597870.7;
 const EARTH_OBLIQUITY_DEG = 23.439291;
-const CITY_INDEX_URL = `${import.meta.env.BASE_URL}data/cities-index.json`;
+const CITY_INDEX_URL = `${import.meta.env.BASE_URL}data/cities-index-v2.json`;
+const CITY_INDEX_GZ_URL = `${CITY_INDEX_URL}.gz`;
 
 const canvas = document.getElementById('scene');
 const statusEl = document.getElementById('status');
@@ -219,6 +220,10 @@ function normalizeCityName(value) {
   return (value || '').trim().toLowerCase();
 }
 
+function normalizeCountryCode(value) {
+  return (value || '').trim().toUpperCase();
+}
+
 function parseLatLonFromUrl(searchParams) {
   const latText = searchParams.get('lat');
   const lonText = searchParams.get('lon');
@@ -230,10 +235,26 @@ function parseLatLonFromUrl(searchParams) {
   return { name: `${lat.toFixed(4)},${lon.toFixed(4)}`, lat, lon };
 }
 
+async function parseGzipJsonFromResponse(response) {
+  const compressed = await response.arrayBuffer();
+  if (typeof DecompressionStream === 'undefined') {
+    throw new Error('DecompressionStream unavailable');
+  }
+  const ds = new DecompressionStream('gzip');
+  const decompressedStream = new Response(compressed).body.pipeThrough(ds);
+  return new Response(decompressedStream).json();
+}
+
 async function loadCityIndex() {
   if (!cityIndexPromise) {
-    cityIndexPromise = fetch(CITY_INDEX_URL, { cache: 'force-cache' })
-      .then((res) => {
+    cityIndexPromise = fetch(CITY_INDEX_GZ_URL, { cache: 'no-store' })
+      .then(async (res) => {
+        if (!res.ok) throw new Error(`Failed to load gzip city index: HTTP ${res.status}`);
+        return parseGzipJsonFromResponse(res);
+      })
+      .catch(async () => {
+        // Fallback path for environments without DecompressionStream or missing .gz file.
+        const res = await fetch(CITY_INDEX_URL, { cache: 'no-store' });
         if (!res.ok) throw new Error(`Failed to load city index: HTTP ${res.status}`);
         return res.json();
       })
@@ -242,8 +263,9 @@ async function loadCityIndex() {
   return cityIndexPromise;
 }
 
-function pickCity(cities, cityName) {
+function pickCity(cities, cityName, countryCode = null) {
   const q = normalizeCityName(cityName);
+  const c = normalizeCountryCode(countryCode);
   if (!q) return null;
 
   let best = null;
@@ -251,6 +273,7 @@ function pickCity(cities, cityName) {
 
   for (const row of cities) {
     const [name, ascii, lat, lon, country, admin1, pop] = row;
+    if (c && normalizeCountryCode(country) !== c) continue;
     const n = normalizeCityName(name);
     const a = normalizeCityName(ascii);
     let score = -1;
@@ -273,14 +296,25 @@ async function resolveLocationFromUrl() {
   if (fromLatLon) return { ...fromLatLon, source: 'latlon' };
 
   const city = params.get('city');
+  const country = params.get('country');
   if (city && city.trim()) {
     try {
       const cities = await loadCityIndex();
-      const found = pickCity(cities, city);
+      const found = pickCity(cities, city, country);
       if (found) return { ...found, source: 'city' };
-      return { ...DEFAULT_LOCATION, source: 'fallback_city_not_found', requestedCity: city };
+      return {
+        ...DEFAULT_LOCATION,
+        source: 'fallback_city_not_found',
+        requestedCity: city,
+        requestedCountry: normalizeCountryCode(country),
+      };
     } catch (_e) {
-      return { ...DEFAULT_LOCATION, source: 'fallback_city_index_error', requestedCity: city };
+      return {
+        ...DEFAULT_LOCATION,
+        source: 'fallback_city_index_error',
+        requestedCity: city,
+        requestedCountry: normalizeCountryCode(country),
+      };
     }
   }
 
@@ -665,7 +699,7 @@ function onResize() {
 
 window.addEventListener('resize', onResize);
 
-// Fixed viewpoint: ground level at Matsue, facing north.
+// Fixed initial heading: facing north.
 camera.lookAt(0, EYE_HEIGHT_M, -10);
 
 renderer.setAnimationLoop(() => {
@@ -717,13 +751,17 @@ async function initializeLocation() {
   activeLocation = await resolveLocationFromUrl();
   observer = new Astronomy.Observer(activeLocation.lat, activeLocation.lon, 0);
   const sourceTag = (() => {
-    if (activeLocation.source === 'city') return `city:${activeLocation.name}`;
+    if (activeLocation.source === 'city') {
+      return activeLocation.country ? `city:${activeLocation.name},${activeLocation.country}` : `city:${activeLocation.name}`;
+    }
     if (activeLocation.source === 'latlon') return 'lat/lon';
     if (activeLocation.source === 'fallback_city_not_found') {
-      return `city not found ('${activeLocation.requestedCity}') -> default`;
+      const cc = activeLocation.requestedCountry ? `, country '${activeLocation.requestedCountry}'` : '';
+      return `city not found ('${activeLocation.requestedCity}'${cc}) -> default`;
     }
     if (activeLocation.source === 'fallback_city_index_error') {
-      return `city lookup error ('${activeLocation.requestedCity}') -> default`;
+      const cc = activeLocation.requestedCountry ? `, country '${activeLocation.requestedCountry}'` : '';
+      return `city lookup error ('${activeLocation.requestedCity}'${cc}) -> default`;
     }
     return 'default';
   })();
@@ -731,9 +769,11 @@ async function initializeLocation() {
     `Desktop preview (${activeLocation.name} ${activeLocation.lat.toFixed(3)}N, ${activeLocation.lon.toFixed(3)}E / ${sourceTag} / stars: ${STAR_META.usedRows})`,
   );
   if (activeLocation.source === 'fallback_city_not_found') {
-    locationSummaryText = `City '${activeLocation.requestedCity}' not found. Using default: ${activeLocation.name} (${activeLocation.lat.toFixed(3)}, ${activeLocation.lon.toFixed(3)})`;
+    const cc = activeLocation.requestedCountry ? ` in country '${activeLocation.requestedCountry}'` : '';
+    locationSummaryText = `City '${activeLocation.requestedCity}'${cc} not found. Using default: ${activeLocation.name} (${activeLocation.lat.toFixed(3)}, ${activeLocation.lon.toFixed(3)})`;
   } else if (activeLocation.source === 'fallback_city_index_error') {
-    locationSummaryText = `City lookup error for '${activeLocation.requestedCity}'. Using default: ${activeLocation.name} (${activeLocation.lat.toFixed(3)}, ${activeLocation.lon.toFixed(3)})`;
+    const cc = activeLocation.requestedCountry ? ` in country '${activeLocation.requestedCountry}'` : '';
+    locationSummaryText = `City lookup error for '${activeLocation.requestedCity}'${cc}. Using default: ${activeLocation.name} (${activeLocation.lat.toFixed(3)}, ${activeLocation.lon.toFixed(3)})`;
   } else {
     locationSummaryText = `${activeLocation.name} (${activeLocation.lat.toFixed(3)}, ${activeLocation.lon.toFixed(3)})`;
   }
