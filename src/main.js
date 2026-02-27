@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import * as Astronomy from 'astronomy-engine';
 import { STAR_LAYERS, STAR_META } from './generated/stars-data.js';
+import { FAMOUS_STARS } from './generated/famous-stars-data.js';
 
 const DEFAULT_LOCATION = {
   name: 'Tokyo',
@@ -11,6 +12,8 @@ const DEFAULT_LOCATION = {
 const EYE_HEIGHT_M = 1.7;
 const SKY_RADIUS = 450;
 const SYMBOL_RADIUS = SKY_RADIUS - 8;
+const FAMOUS_STAR_HIT_ANGLE_DEG = 1.2;
+const FAMOUS_STAR_HIT_COS = Math.cos(THREE.MathUtils.degToRad(FAMOUS_STAR_HIT_ANGLE_DEG));
 const AU_KM = 149597870.7;
 const EARTH_OBLIQUITY_DEG = 23.439291;
 const CITY_INDEX_URL = `${import.meta.env.BASE_URL}data/cities-index-v2.json`;
@@ -43,6 +46,36 @@ scene.add(hemiLight);
 const dirLight = new THREE.DirectionalLight(0xd8e6ff, 0.26);
 dirLight.position.set(-2, 5, 2);
 scene.add(dirLight);
+
+function createControllerPointerLine() {
+  const geometry = new THREE.BufferGeometry().setFromPoints([
+    new THREE.Vector3(0, 0, 0),
+    new THREE.Vector3(0, 0, -1),
+  ]);
+  const material = new THREE.LineBasicMaterial({
+    color: 0x9ad8ff,
+    transparent: true,
+    opacity: 0.95,
+    depthTest: false,
+  });
+  const line = new THREE.Line(geometry, material);
+  line.scale.z = 120;
+  line.visible = false;
+  return line;
+}
+
+for (let i = 0; i < 2; i += 1) {
+  const controller = renderer.xr.getController(i);
+  const pointerLine = createControllerPointerLine();
+  controller.add(pointerLine);
+  controller.addEventListener('connected', (event) => {
+    pointerLine.visible = event.data?.targetRayMode === 'tracked-pointer';
+  });
+  controller.addEventListener('disconnected', () => {
+    pointerLine.visible = false;
+  });
+  scene.add(controller);
+}
 
 function createStarfieldFromLayer(layer, radius) {
   const srcPos = layer.positions;
@@ -540,6 +573,28 @@ const planetObjects = planetDefs.map((def) => {
   return { ...def, marker, label };
 });
 
+function raDecToUnitVector(raHours, decDeg) {
+  const ra = (raHours * Math.PI) / 12.0;
+  const dec = THREE.MathUtils.degToRad(decDeg);
+  const c = Math.cos(dec);
+  return new THREE.Vector3(
+    c * Math.cos(ra),
+    Math.sin(dec),
+    c * Math.sin(ra),
+  );
+}
+
+const famousStarObjects = FAMOUS_STARS.map((def) => {
+  const direction = raDecToUnitVector(def.raHours, def.decDeg).normalize();
+  const label = createTextSprite(def.name, 'rgba(234,242,255,0.98)');
+  // Keep same style as planet labels.
+  label.scale.set(36.0, 13.5, 1.0);
+  label.position.copy(direction).multiplyScalar(SYMBOL_RADIUS);
+  label.visible = false;
+  solarSystemGroup.add(label);
+  return { ...def, direction, label };
+});
+
 const zenithMarker = createCrossMarkerSprite('rgba(210, 244, 255, 0.96)');
 zenithMarker.scale.set(4.2, 4.2, 1.0);
 zenithMarker.position.set(0, SYMBOL_RADIUS, 0);
@@ -673,6 +728,60 @@ function updateSolarSystemMarkers() {
   rebuildReferenceLines();
 }
 
+function getControllerRayDirections(xrFrame) {
+  if (!xrFrame || !renderer.xr.isPresenting) return null;
+  const session = renderer.xr.getSession();
+  const refSpace = renderer.xr.getReferenceSpace();
+  if (!session || !refSpace) return null;
+
+  const rays = [];
+  for (const src of session.inputSources) {
+    if (src.targetRayMode !== 'tracked-pointer') continue;
+    const pose = xrFrame.getPose(src.targetRaySpace, refSpace);
+    if (!pose) continue;
+    const o = pose.transform.orientation;
+    const q = new THREE.Quaternion(o.x, o.y, o.z, o.w);
+    const dir = new THREE.Vector3(0, 0, -1).applyQuaternion(q).normalize();
+    rays.push(dir);
+  }
+  return rays;
+}
+
+function updateFamousStarHoverLabels(xrFrame) {
+  if (!renderer.xr.isPresenting) {
+    for (const star of famousStarObjects) {
+      star.label.visible = false;
+    }
+    return;
+  }
+
+  const rayDirs = getControllerRayDirections(xrFrame);
+  if (!rayDirs || rayDirs.length === 0) {
+    for (const star of famousStarObjects) {
+      star.label.visible = false;
+    }
+    return;
+  }
+
+  let bestStar = null;
+  let bestDot = FAMOUS_STAR_HIT_COS;
+
+  for (const star of famousStarObjects) {
+    star.label.visible = false;
+    for (const rayDir of rayDirs) {
+      const dot = rayDir.dot(star.direction);
+      if (dot > bestDot) {
+        bestDot = dot;
+        bestStar = star;
+      }
+    }
+  }
+
+  if (bestStar) {
+    bestStar.label.visible = true;
+  }
+}
+
 let lastSolarUpdateMs = 0;
 let vrSplashSprite = null;
 let vrSplashUntilMs = 0;
@@ -748,7 +857,7 @@ window.addEventListener('resize', onResize);
 // Fixed initial heading: facing north.
 camera.lookAt(0, EYE_HEIGHT_M, -10);
 
-renderer.setAnimationLoop(() => {
+renderer.setAnimationLoop((_time, xrFrame) => {
   const nowMs = performance.now();
   if (nowMs - lastSolarUpdateMs > 10000) {
     updateSolarSystemMarkers();
@@ -789,6 +898,8 @@ renderer.setAnimationLoop(() => {
       }
     }
   }
+
+  updateFamousStarHoverLabels(xrFrame);
 
   renderer.render(scene, camera);
 });
