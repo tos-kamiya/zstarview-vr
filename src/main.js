@@ -707,6 +707,7 @@ async function prepareVrButton() {
         optionalFeatures: ['local-floor'],
       });
       renderer.xr.setFramebufferScaleFactor(1.25);
+      renderer.xr.setFoveation(0);
       renderer.xr.setSession(nextSession);
       session = nextSession;
       enterVrButton.textContent = 'Exit VR';
