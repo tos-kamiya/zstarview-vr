@@ -98,30 +98,54 @@ function createCardinalSprite(label) {
     depthWrite: false,
   });
   const sprite = new THREE.Sprite(material);
-  sprite.scale.set(2.6, 1.3, 1.0);
+  // Match perceived size against celestial labels by distance ratio:
+  // cardinals are near (~22), celestial labels are on the sky dome (~442).
+  const ratio = CARDINAL_RADIUS / SYMBOL_RADIUS;
+  sprite.scale.set(36.0 * ratio, 13.5 * ratio, 1.0);
   return sprite;
 }
 
-function createSymbolSprite(label, fillStyle = 'rgba(255,255,255,0.96)', strokeStyle = 'rgba(0,0,0,0.86)') {
+function createTextSprite(label, fillStyle = 'rgba(255,255,255,0.96)', strokeStyle = 'rgba(0,0,0,0.86)') {
   const cnv = document.createElement('canvas');
-  cnv.width = 192;
+  cnv.width = 512;
   cnv.height = 192;
   const ctx = cnv.getContext('2d');
   ctx.clearRect(0, 0, cnv.width, cnv.height);
-  ctx.font = 'bold 132px "Noto Sans Symbols", "Segoe UI Symbol", sans-serif';
+  ctx.font = 'bold 98px "Noto Sans", "Noto Sans JP", "Segoe UI", sans-serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.lineWidth = 14;
+  ctx.lineWidth = 12;
   ctx.strokeStyle = strokeStyle;
   ctx.fillStyle = fillStyle;
-  ctx.strokeText(label, cnv.width / 2, cnv.height / 2 + 3);
-  ctx.fillText(label, cnv.width / 2, cnv.height / 2 + 3);
+  ctx.strokeText(label, cnv.width / 2, cnv.height / 2 + 1);
+  ctx.fillText(label, cnv.width / 2, cnv.height / 2 + 1);
 
   const texture = new THREE.CanvasTexture(cnv);
   texture.colorSpace = THREE.SRGBColorSpace;
   texture.needsUpdate = true;
   const material = new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false });
   return new THREE.Sprite(material);
+}
+
+function createCrossMarkerSprite(strokeStyle = 'rgba(235, 240, 255, 0.98)') {
+  const cnv = document.createElement('canvas');
+  cnv.width = 192;
+  cnv.height = 192;
+  const ctx = cnv.getContext('2d');
+  ctx.clearRect(0, 0, cnv.width, cnv.height);
+  ctx.strokeStyle = strokeStyle;
+  ctx.lineWidth = 14;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(48, 48);
+  ctx.lineTo(144, 144);
+  ctx.moveTo(144, 48);
+  ctx.lineTo(48, 144);
+  ctx.stroke();
+  const texture = new THREE.CanvasTexture(cnv);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.needsUpdate = true;
+  return new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false }));
 }
 
 function createCircleOutlineSprite(strokeStyle) {
@@ -226,13 +250,26 @@ const horizonGeometry = new THREE.BufferGeometry().setFromPoints(horizonPoints);
 const horizonRing = new THREE.LineLoop(
   horizonGeometry,
   new THREE.LineBasicMaterial({
-    color: 0x49e96b,
+    color: 0x257435,
     transparent: true,
     opacity: 0.92,
     depthTest: false,
   })
 );
 scene.add(horizonRing);
+
+const groundDisc = new THREE.Mesh(
+  new THREE.CircleGeometry(70, 96),
+  new THREE.MeshBasicMaterial({
+    color: 0x22354a,
+    transparent: true,
+    opacity: 0.33,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+  })
+);
+groundDisc.rotation.x = -Math.PI / 2;
+scene.add(groundDisc);
 
 const d = CARDINAL_RADIUS / Math.sqrt(2);
 const cardinalAnchors = [
@@ -269,18 +306,27 @@ solarSystemGroup.add(sunSprite);
 solarSystemGroup.add(moonSprite);
 
 const planetDefs = [
-  { body: 'Mercury', symbol: '☿', color: 'rgba(232,232,232,0.98)' },
-  { body: 'Venus', symbol: '♀', color: 'rgba(255,228,166,0.98)' },
-  { body: 'Mars', symbol: '♂', color: 'rgba(255,159,131,0.98)' },
-  { body: 'Jupiter', symbol: '♃', color: 'rgba(255,233,189,0.98)' },
-  { body: 'Saturn', symbol: '♄', color: 'rgba(255,233,161,0.98)' },
+  { body: 'Mercury', label: 'Mercury', color: 'rgba(232,232,232,0.98)' },
+  { body: 'Venus', label: 'Venus', color: 'rgba(255,228,166,0.98)' },
+  { body: 'Mars', label: 'Mars', color: 'rgba(255,159,131,0.98)' },
+  { body: 'Jupiter', label: 'Jupiter', color: 'rgba(255,233,189,0.98)' },
+  { body: 'Saturn', label: 'Saturn', color: 'rgba(255,233,161,0.98)' },
 ];
-const planetSprites = planetDefs.map((def) => {
-  const sprite = createSymbolSprite(def.symbol, def.color);
-  sprite.scale.set(3.2, 3.2, 1.0);
-  solarSystemGroup.add(sprite);
-  return { ...def, sprite };
+const planetObjects = planetDefs.map((def) => {
+  const marker = createCrossMarkerSprite(def.color);
+  marker.scale.set(3.0, 3.0, 1.0);
+  const label = createTextSprite(def.label, def.color);
+  // User requested 5x larger celestial labels.
+  label.scale.set(36.0, 13.5, 1.0);
+  solarSystemGroup.add(marker);
+  solarSystemGroup.add(label);
+  return { ...def, marker, label };
 });
+
+const zenithMarker = createCrossMarkerSprite('rgba(210, 244, 255, 0.96)');
+zenithMarker.scale.set(4.2, 4.2, 1.0);
+zenithMarker.position.set(0, SYMBOL_RADIUS, 0);
+solarSystemGroup.add(zenithMarker);
 
 const eclipticLine = buildLineOnSky(
   360,
@@ -291,7 +337,7 @@ const eclipticLine = buildLineOnSky(
   },
   SYMBOL_RADIUS - 1,
   new THREE.LineDashedMaterial({
-    color: 0xffd24a,
+    color: 0x806925,
     dashSize: 3.8,
     gapSize: 2.6,
     transparent: true,
@@ -309,7 +355,7 @@ const celestialEquatorLine = buildLineOnSky(
   },
   SYMBOL_RADIUS - 1,
   new THREE.LineDashedMaterial({
-    color: 0x96a0ac,
+    color: 0x4b5056,
     dashSize: 6.6,
     gapSize: 6.8,
     transparent: true,
@@ -341,38 +387,45 @@ function rebuildReferenceLines() {
   celestialEquatorLine.computeLineDistances();
 }
 
-function placeBodySprite({ body, sprite, minAlt = -0.8 }) {
+function placeBodySprite({ body, sprite, minAlt = -0.8, alwaysVisible = false }) {
   const now = new Date();
   const equ = Astronomy.Equator(body, now, observer, true, true);
   const hor = Astronomy.Horizon(now, observer, equ.ra, equ.dec, 'normal');
-  if (hor.altitude <= minAlt) {
+  if (!alwaysVisible && hor.altitude <= minAlt) {
     sprite.visible = false;
     return;
   }
   sprite.visible = true;
   const pos = altAzToVector(hor.altitude, hor.azimuth, SYMBOL_RADIUS);
   sprite.position.copy(pos);
-  return equ.dist;
+  return { dist: equ.dist, altitude: hor.altitude, azimuth: hor.azimuth };
 }
 
 function updateSolarSystemMarkers() {
-  const sunDistAu = placeBodySprite({ body: 'Sun', sprite: sunSprite, minAlt: -2.0 });
-  const moonDistAu = placeBodySprite({ body: 'Moon', sprite: moonSprite, minAlt: -2.0 });
+  const sunPos = placeBodySprite({ body: 'Sun', sprite: sunSprite, alwaysVisible: true });
+  const moonPos = placeBodySprite({ body: 'Moon', sprite: moonSprite, alwaysVisible: true });
 
-  if (sunSprite.visible && Number.isFinite(sunDistAu)) {
-    const deg = angularDiameterDeg(1392700.0, sunDistAu);
+  if (sunSprite.visible && sunPos && Number.isFinite(sunPos.dist)) {
+    const deg = angularDiameterDeg(1392700.0, sunPos.dist);
     const scale = spriteScaleFromAngularDiameter(deg, SYMBOL_RADIUS);
     sunSprite.scale.set(scale, scale, 1.0);
   }
 
-  if (moonSprite.visible && Number.isFinite(moonDistAu)) {
-    const deg = angularDiameterDeg(3474.8, moonDistAu);
+  if (moonSprite.visible && moonPos && Number.isFinite(moonPos.dist)) {
+    const deg = angularDiameterDeg(3474.8, moonPos.dist);
     const scale = spriteScaleFromAngularDiameter(deg, SYMBOL_RADIUS);
     moonSprite.scale.set(scale, scale, 1.0);
   }
 
-  for (const planet of planetSprites) {
-    placeBodySprite({ body: planet.body, sprite: planet.sprite, minAlt: -0.8 });
+  for (const planet of planetObjects) {
+    const pos = placeBodySprite({ body: planet.body, sprite: planet.marker, alwaysVisible: true });
+    if (!planet.marker.visible || !pos) {
+      planet.label.visible = false;
+      continue;
+    }
+    planet.label.visible = true;
+    const labelPos = altAzToVector(pos.altitude + 1.2, pos.azimuth, SYMBOL_RADIUS);
+    planet.label.position.copy(labelPos);
   }
 
   rebuildReferenceLines();
@@ -453,6 +506,8 @@ renderer.setAnimationLoop(() => {
       mesh.position.copy(camera.position);
     }
     solarSystemGroup.position.copy(camera.position);
+    groundDisc.position.copy(camera.position);
+    groundDisc.position.y -= EYE_HEIGHT_M;
   }
 
   if (renderer.xr.isPresenting) {
@@ -462,6 +517,8 @@ renderer.setAnimationLoop(() => {
       mesh.position.copy(sky.position);
     }
     solarSystemGroup.position.copy(sky.position);
+    groundDisc.position.copy(sky.position);
+    groundDisc.position.y -= EYE_HEIGHT_M;
   }
 
   renderer.render(scene, camera);
