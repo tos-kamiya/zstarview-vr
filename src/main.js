@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import * as Astronomy from 'astronomy-engine';
 import { STAR_LAYERS, STAR_META } from './generated/stars-data.js';
 
 const MATSUE = {
@@ -9,6 +10,8 @@ const MATSUE = {
 const EYE_HEIGHT_M = 1.7;
 const SKY_RADIUS = 450;
 const CARDINAL_RADIUS = 22;
+const SYMBOL_RADIUS = SKY_RADIUS - 8;
+const AU_KM = 149597870.7;
 
 const canvas = document.getElementById('scene');
 const statusEl = document.getElementById('status');
@@ -98,6 +101,68 @@ function createCardinalSprite(label) {
   return sprite;
 }
 
+function createSymbolSprite(label, fillStyle = 'rgba(255,255,255,0.96)', strokeStyle = 'rgba(0,0,0,0.86)') {
+  const cnv = document.createElement('canvas');
+  cnv.width = 192;
+  cnv.height = 192;
+  const ctx = cnv.getContext('2d');
+  ctx.clearRect(0, 0, cnv.width, cnv.height);
+  ctx.font = 'bold 132px "Noto Sans Symbols", "Segoe UI Symbol", sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.lineWidth = 14;
+  ctx.strokeStyle = strokeStyle;
+  ctx.fillStyle = fillStyle;
+  ctx.strokeText(label, cnv.width / 2, cnv.height / 2 + 3);
+  ctx.fillText(label, cnv.width / 2, cnv.height / 2 + 3);
+
+  const texture = new THREE.CanvasTexture(cnv);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.needsUpdate = true;
+  const material = new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false });
+  return new THREE.Sprite(material);
+}
+
+function createCircleOutlineSprite(strokeStyle) {
+  const cnv = document.createElement('canvas');
+  cnv.width = 256;
+  cnv.height = 256;
+  const ctx = cnv.getContext('2d');
+  ctx.clearRect(0, 0, cnv.width, cnv.height);
+  ctx.beginPath();
+  ctx.arc(cnv.width / 2, cnv.height / 2, 90, 0, Math.PI * 2);
+  ctx.strokeStyle = strokeStyle;
+  ctx.lineWidth = 10;
+  ctx.stroke();
+  const texture = new THREE.CanvasTexture(cnv);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.needsUpdate = true;
+  return new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false }));
+}
+
+function altAzToVector(altDeg, azDeg, radius) {
+  const alt = THREE.MathUtils.degToRad(altDeg);
+  const az = THREE.MathUtils.degToRad(azDeg);
+  const cosAlt = Math.cos(alt);
+  return new THREE.Vector3(
+    radius * cosAlt * Math.sin(az),
+    radius * Math.sin(alt),
+    -radius * cosAlt * Math.cos(az)
+  );
+}
+
+function angularDiameterDeg(diameterKm, distAu) {
+  const distKm = distAu * AU_KM;
+  const rad = 2.0 * Math.atan((diameterKm * 0.5) / Math.max(1e-9, distKm));
+  return THREE.MathUtils.radToDeg(rad);
+}
+
+function spriteScaleFromAngularDiameter(angularDeg, radius) {
+  const theta = THREE.MathUtils.degToRad(angularDeg);
+  const diameter = 2.0 * radius * Math.tan(theta * 0.5);
+  return Math.max(2.4, diameter * 1.8);
+}
+
 const sky = new THREE.Mesh(
   new THREE.SphereGeometry(SKY_RADIUS, 96, 64),
   new THREE.MeshBasicMaterial({ color: 0x060b16, side: THREE.BackSide, depthWrite: false })
@@ -161,6 +226,66 @@ for (const anchor of cardinalAnchors) {
   scene.add(sprite);
 }
 
+const observer = new Astronomy.Observer(MATSUE.lat, MATSUE.lon, 0);
+const solarSystemGroup = new THREE.Group();
+scene.add(solarSystemGroup);
+
+const sunSprite = createCircleOutlineSprite('rgba(255, 214, 120, 0.98)');
+const moonSprite = createCircleOutlineSprite('rgba(206, 220, 255, 0.98)');
+solarSystemGroup.add(sunSprite);
+solarSystemGroup.add(moonSprite);
+
+const planetDefs = [
+  { body: 'Mercury', symbol: '☿', color: 'rgba(232,232,232,0.98)' },
+  { body: 'Venus', symbol: '♀', color: 'rgba(255,228,166,0.98)' },
+  { body: 'Mars', symbol: '♂', color: 'rgba(255,159,131,0.98)' },
+  { body: 'Jupiter', symbol: '♃', color: 'rgba(255,233,189,0.98)' },
+  { body: 'Saturn', symbol: '♄', color: 'rgba(255,233,161,0.98)' },
+];
+const planetSprites = planetDefs.map((def) => {
+  const sprite = createSymbolSprite(def.symbol, def.color);
+  sprite.scale.set(3.2, 3.2, 1.0);
+  solarSystemGroup.add(sprite);
+  return { ...def, sprite };
+});
+
+function placeBodySprite({ body, sprite, minAlt = -0.8 }) {
+  const now = new Date();
+  const equ = Astronomy.Equator(body, now, observer, true, true);
+  const hor = Astronomy.Horizon(now, observer, equ.ra, equ.dec, 'normal');
+  if (hor.altitude <= minAlt) {
+    sprite.visible = false;
+    return;
+  }
+  sprite.visible = true;
+  const pos = altAzToVector(hor.altitude, hor.azimuth, SYMBOL_RADIUS);
+  sprite.position.copy(pos);
+  return equ.dist;
+}
+
+function updateSolarSystemMarkers() {
+  const sunDistAu = placeBodySprite({ body: 'Sun', sprite: sunSprite, minAlt: -2.0 });
+  const moonDistAu = placeBodySprite({ body: 'Moon', sprite: moonSprite, minAlt: -2.0 });
+
+  if (sunSprite.visible && Number.isFinite(sunDistAu)) {
+    const deg = angularDiameterDeg(1392700.0, sunDistAu);
+    const scale = spriteScaleFromAngularDiameter(deg, SYMBOL_RADIUS);
+    sunSprite.scale.set(scale, scale, 1.0);
+  }
+
+  if (moonSprite.visible && Number.isFinite(moonDistAu)) {
+    const deg = angularDiameterDeg(3474.8, moonDistAu);
+    const scale = spriteScaleFromAngularDiameter(deg, SYMBOL_RADIUS);
+    moonSprite.scale.set(scale, scale, 1.0);
+  }
+
+  for (const planet of planetSprites) {
+    placeBodySprite({ body: planet.body, sprite: planet.sprite, minAlt: -0.8 });
+  }
+}
+
+let lastSolarUpdateMs = 0;
+
 let session = null;
 
 function setStatus(text) {
@@ -221,12 +346,19 @@ window.addEventListener('resize', onResize);
 camera.lookAt(0, EYE_HEIGHT_M, -10);
 
 renderer.setAnimationLoop(() => {
+  const nowMs = performance.now();
+  if (nowMs - lastSolarUpdateMs > 10000) {
+    updateSolarSystemMarkers();
+    lastSolarUpdateMs = nowMs;
+  }
+
   // Keep sky and stars centered around the observer.
   if (!renderer.xr.isPresenting) {
     sky.position.copy(camera.position);
     for (const mesh of starMeshes) {
       mesh.position.copy(camera.position);
     }
+    solarSystemGroup.position.copy(camera.position);
   }
 
   if (renderer.xr.isPresenting) {
@@ -235,10 +367,12 @@ renderer.setAnimationLoop(() => {
     for (const mesh of starMeshes) {
       mesh.position.copy(sky.position);
     }
+    solarSystemGroup.position.copy(sky.position);
   }
 
   renderer.render(scene, camera);
 });
 
 setStatus(`Desktop preview (Matsue ${MATSUE.lat.toFixed(3)}N, ${MATSUE.lon.toFixed(3)}E / North facing / stars: ${STAR_META.usedRows})`);
+updateSolarSystemMarkers();
 prepareVrButton();
