@@ -33,6 +33,7 @@ const CITY_INDEX_GZ_URL = `${CITY_INDEX_URL}.gz`;
 const DEFAULT_MAX_MAG = 6.0;
 const EXTENDED_MAX_MAG_7 = 7.0;
 const EXTENDED_MAX_MAG_8 = 8.0;
+const EXTENDED_MAX_MAG_9 = 9.0;
 const APP_QUERY_PARAMS = new URLSearchParams(window.location.search);
 
 const canvas = document.getElementById('scene');
@@ -52,6 +53,7 @@ function parseMaxMagFromUrl(searchParams) {
   if (value == null || value.trim() === '') return DEFAULT_MAX_MAG;
   const parsed = Number.parseFloat(value);
   if (!Number.isFinite(parsed)) return DEFAULT_MAX_MAG;
+  if (parsed >= EXTENDED_MAX_MAG_9) return EXTENDED_MAX_MAG_9;
   if (parsed >= EXTENDED_MAX_MAG_8) return EXTENDED_MAX_MAG_8;
   if (parsed >= EXTENDED_MAX_MAG_7) return EXTENDED_MAX_MAG_7;
   return DEFAULT_MAX_MAG;
@@ -66,6 +68,7 @@ let displayedStarCount = STAR_META.usedRows;
 let loadedMaxMag = STAR_META.maxVmag;
 let extra7StarsLoaded = false;
 let extra8StarsLoaded = false;
+let extra9StarsLoaded = false;
 let extendedStarsLoading = false;
 let extendedStarsLoadPromise = null;
 let pendingExtendedStarsSplash = false;
@@ -1027,6 +1030,13 @@ async function ensureExtendedStarsLoaded() {
       displayedStarCount += extra8.STAR_EXTRA_8_META.usedRows;
       loadedMaxMag = Math.max(loadedMaxMag, extra8.STAR_EXTRA_8_META.maxVmag);
       extra8StarsLoaded = true;
+    }
+    if (requestedMaxMag >= EXTENDED_MAX_MAG_9 && !extra9StarsLoaded) {
+      const extra9 = await import('./generated/stars-data-extra-9.js');
+      addStarLayers(extra9.STAR_EXTRA_9_LAYERS);
+      displayedStarCount += extra9.STAR_EXTRA_9_META.usedRows;
+      loadedMaxMag = Math.max(loadedMaxMag, extra9.STAR_EXTRA_9_META.maxVmag);
+      extra9StarsLoaded = true;
     }
     return true;
   })()
