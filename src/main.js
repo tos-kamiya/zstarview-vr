@@ -24,6 +24,7 @@ const CITY_INDEX_GZ_URL = `${CITY_INDEX_URL}.gz`;
 const APP_QUERY_PARAMS = new URLSearchParams(window.location.search);
 
 const canvas = document.getElementById('scene');
+const hudEl = document.getElementById('hud');
 const statusEl = document.getElementById('status');
 const enterVrButton = document.getElementById('enter-vr');
 let locationSummaryText = '';
@@ -35,6 +36,12 @@ function parseViewModeFromUrl(searchParams) {
 }
 
 const desktopViewMode = parseViewModeFromUrl(APP_QUERY_PARAMS);
+const fisheyeEnabled = desktopViewMode === VIEW_MODE_FISHEYE_180;
+const STAR_SIZE_SCALE = fisheyeEnabled ? 2.0 : 1.0;
+
+if (fisheyeEnabled && hudEl) {
+  hudEl.style.display = 'none';
+}
 
 const renderer = new THREE.WebGLRenderer({
   canvas,
@@ -70,6 +77,7 @@ const fisheyePostMaterial = new THREE.ShaderMaterial({
     uCubeTex: { value: fisheyeCubeTarget.texture },
     uViewRot: { value: fisheyeViewRotation },
     uBackground: { value: new THREE.Color(0x000000) },
+    uAspect: { value: window.innerWidth / Math.max(1, window.innerHeight) },
   },
   vertexShader: `
     varying vec2 vUv;
@@ -83,17 +91,24 @@ const fisheyePostMaterial = new THREE.ShaderMaterial({
     uniform samplerCube uCubeTex;
     uniform mat3 uViewRot;
     uniform vec3 uBackground;
+    uniform float uAspect;
 
     void main() {
       vec2 p = vec2(vUv.x * 2.0 - 1.0, 1.0 - vUv.y * 2.0);
-      float r = length(p);
+      vec2 q = p;
+      if (uAspect >= 1.0) {
+        q.x *= uAspect;
+      } else {
+        q.y /= max(uAspect, 1e-6);
+      }
+      float r = length(q);
       if (r > 1.0) {
         gl_FragColor = vec4(uBackground, 1.0);
         return;
       }
 
       float theta = r * (0.5 * 3.141592653589793);
-      float phi = atan(p.y, p.x);
+      float phi = atan(q.y, q.x);
       float sinTheta = sin(theta);
 
       vec3 dirLocal = vec3(
@@ -167,7 +182,7 @@ function createStarfieldFromLayer(layer, radius) {
   geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
 
   const material = new THREE.PointsMaterial({
-    size: layer.size,
+    size: layer.size * STAR_SIZE_SCALE,
     sizeAttenuation: false,
     vertexColors: true,
     transparent: true,
@@ -1008,6 +1023,7 @@ function onResize() {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
+  fisheyePostMaterial.uniforms.uAspect.value = window.innerWidth / Math.max(1, window.innerHeight);
 }
 
 window.addEventListener('resize', onResize);
