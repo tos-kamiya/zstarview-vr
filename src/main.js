@@ -12,6 +12,8 @@ const DEFAULT_LOCATION = {
 const EYE_HEIGHT_M = 1.7;
 const SKY_RADIUS = 450;
 const SYMBOL_RADIUS = SKY_RADIUS - 8;
+const LABEL_SCALE_X = 72.0;
+const LABEL_SCALE_Y = 27.0;
 const FAMOUS_STAR_HIT_ANGLE_DEG = 1.2;
 const FAMOUS_STAR_HIT_COS = Math.cos(THREE.MathUtils.degToRad(FAMOUS_STAR_HIT_ANGLE_DEG));
 const VIEW_MODE_MONO = 'mono';
@@ -629,9 +631,9 @@ scene.add(solarSystemGroup);
 const sunSprite = createCircleOutlineSprite('rgba(255, 214, 120, 0.98)');
 const moonSprite = createCircleOutlineSprite('rgba(206, 220, 255, 0.98)');
 const sunLabel = createTextSprite('Sun', 'rgba(255,228,166,0.98)');
-sunLabel.scale.set(36.0, 13.5, 1.0);
+sunLabel.scale.set(LABEL_SCALE_X, LABEL_SCALE_Y, 1.0);
 const moonLabel = createTextSprite('Moon', 'rgba(206,220,255,0.98)');
-moonLabel.scale.set(36.0, 13.5, 1.0);
+moonLabel.scale.set(LABEL_SCALE_X, LABEL_SCALE_Y, 1.0);
 solarSystemGroup.add(sunSprite);
 solarSystemGroup.add(moonSprite);
 solarSystemGroup.add(sunLabel);
@@ -649,7 +651,7 @@ const cardinalDefs = [
 ];
 for (const d of cardinalDefs) {
   const label = createTextSprite(d.label, 'rgba(156, 230, 182, 0.98)');
-  label.scale.set(36.0, 13.5, 1.0);
+  label.scale.set(LABEL_SCALE_X, LABEL_SCALE_Y, 1.0);
   label.position.copy(altAzToVector(0.0, d.az, SYMBOL_RADIUS));
   solarSystemGroup.add(label);
 }
@@ -665,8 +667,7 @@ const planetObjects = planetDefs.map((def) => {
   const marker = createCrossMarkerSprite(def.color);
   marker.scale.set(3.0, 3.0, 1.0);
   const label = createTextSprite(def.label, def.color);
-  // User requested 5x larger celestial labels.
-  label.scale.set(36.0, 13.5, 1.0);
+  label.scale.set(LABEL_SCALE_X, LABEL_SCALE_Y, 1.0);
   solarSystemGroup.add(marker);
   solarSystemGroup.add(label);
   return { ...def, marker, label };
@@ -687,8 +688,7 @@ const famousStarObjects = FAMOUS_STARS.map((def) => {
   const equatorialDirection = raDecToUnitVector(def.raHours, def.decDeg).normalize();
   const worldDirection = equatorialDirection.clone();
   const label = createTextSprite(def.name, 'rgba(234,242,255,0.98)');
-  // Keep same style as planet labels.
-  label.scale.set(36.0, 13.5, 1.0);
+  label.scale.set(LABEL_SCALE_X, LABEL_SCALE_Y, 1.0);
   label.position.copy(worldDirection).multiplyScalar(SYMBOL_RADIUS);
   label.visible = false;
   solarSystemGroup.add(label);
@@ -1059,10 +1059,10 @@ if (fisheyeEnabled) {
         desktopLook.yaw -= DESKTOP_YAW_STEP_RAD;
         break;
       case 'ArrowUp':
-        desktopLook.pitch = Math.min(DESKTOP_PITCH_LIMIT_RAD, desktopLook.pitch + DESKTOP_PITCH_STEP_RAD);
+        desktopLook.pitch = Math.max(-DESKTOP_PITCH_LIMIT_RAD, desktopLook.pitch - DESKTOP_PITCH_STEP_RAD);
         break;
       case 'ArrowDown':
-        desktopLook.pitch = Math.max(-DESKTOP_PITCH_LIMIT_RAD, desktopLook.pitch - DESKTOP_PITCH_STEP_RAD);
+        desktopLook.pitch = Math.min(DESKTOP_PITCH_LIMIT_RAD, desktopLook.pitch + DESKTOP_PITCH_STEP_RAD);
         break;
       default:
         handled = false;
