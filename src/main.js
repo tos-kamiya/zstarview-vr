@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import * as Astronomy from 'astronomy-engine';
 import { STAR_LAYERS, STAR_META } from './generated/stars-data.js';
 import { FAMOUS_STARS } from './generated/famous-stars-data.js';
+import packageJson from '../package.json';
 
 const DEFAULT_LOCATION = {
   name: 'Tokyo',
@@ -14,6 +15,8 @@ const SKY_RADIUS = 450;
 const SYMBOL_RADIUS = SKY_RADIUS - 8;
 const LABEL_SCALE_X = 72.0;
 const LABEL_SCALE_Y = 27.0;
+const FAMOUS_LABEL_SCALE_X = LABEL_SCALE_X * 1.2;
+const APP_VERSION = packageJson.version;
 const FAMOUS_STAR_HIT_ANGLE_DEG = 1.2;
 const FAMOUS_STAR_HIT_COS = Math.cos(THREE.MathUtils.degToRad(FAMOUS_STAR_HIT_ANGLE_DEG));
 const VIEW_MODE_MONO = 'mono';
@@ -260,8 +263,8 @@ function createCircleOutlineSprite(strokeStyle) {
 
 function createVrSplashSprite(text) {
   const cnv = document.createElement('canvas');
-  cnv.width = 1024;
-  cnv.height = 256;
+  cnv.width = 1280;
+  cnv.height = 320;
   const ctx = cnv.getContext('2d');
   ctx.clearRect(0, 0, cnv.width, cnv.height);
 
@@ -283,20 +286,36 @@ function createVrSplashSprite(text) {
   ctx.fill();
   ctx.stroke();
 
-  ctx.font = 'bold 72px "Noto Sans", "Noto Sans JP", sans-serif';
+  let fontSize = 86;
+  const maxWidth = cnv.width * 0.9;
+  while (fontSize > 44) {
+    ctx.font = `bold ${fontSize}px "Noto Sans", "Noto Sans JP", sans-serif`;
+    if (ctx.measureText(text).width <= maxWidth) break;
+    fontSize -= 4;
+  }
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillStyle = 'rgba(234, 242, 255, 0.98)';
   ctx.strokeStyle = 'rgba(2, 10, 22, 0.9)';
-  ctx.lineWidth = 10;
-  ctx.strokeText(text, cnv.width / 2, cnv.height / 2);
-  ctx.fillText(text, cnv.width / 2, cnv.height / 2);
+  ctx.lineWidth = 11;
+  ctx.strokeText(text, cnv.width / 2, cnv.height * 0.48);
+  ctx.fillText(text, cnv.width / 2, cnv.height * 0.48);
+
+  const versionText = `v${APP_VERSION}`;
+  ctx.font = 'bold 34px "Noto Sans", "Noto Sans JP", sans-serif';
+  ctx.textAlign = 'right';
+  ctx.textBaseline = 'alphabetic';
+  ctx.fillStyle = 'rgba(197, 219, 255, 0.9)';
+  ctx.strokeStyle = 'rgba(2, 10, 22, 0.82)';
+  ctx.lineWidth = 6;
+  ctx.strokeText(versionText, cnv.width - 28, cnv.height - 26);
+  ctx.fillText(versionText, cnv.width - 28, cnv.height - 26);
 
   const texture = new THREE.CanvasTexture(cnv);
   texture.colorSpace = THREE.SRGBColorSpace;
   texture.needsUpdate = true;
   const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false }));
-  sprite.scale.set(1.6, 0.4, 1.0);
+  sprite.scale.set(2.15, 0.58, 1.0);
   return sprite;
 }
 
@@ -688,7 +707,7 @@ const famousStarObjects = FAMOUS_STARS.map((def) => {
   const equatorialDirection = raDecToUnitVector(def.raHours, def.decDeg).normalize();
   const worldDirection = equatorialDirection.clone();
   const label = createTextSprite(def.name, 'rgba(234,242,255,0.98)');
-  label.scale.set(LABEL_SCALE_X, LABEL_SCALE_Y, 1.0);
+  label.scale.set(FAMOUS_LABEL_SCALE_X, LABEL_SCALE_Y, 1.0);
   label.position.copy(worldDirection).multiplyScalar(SYMBOL_RADIUS);
   label.visible = false;
   solarSystemGroup.add(label);
@@ -940,7 +959,7 @@ let vrSplashUntilMs = 0;
 let session = null;
 
 function setStatus(text) {
-  statusEl.textContent = `Status: ${text}`;
+  statusEl.textContent = `Status: v${APP_VERSION} | ${text}`;
 }
 
 function desktopModeLabel() {
