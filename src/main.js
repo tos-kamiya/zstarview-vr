@@ -681,6 +681,9 @@ const planetDefs = [
   { body: 'Mars', label: 'Mars', color: 'rgba(255,159,131,0.98)' },
   { body: 'Jupiter', label: 'Jupiter', color: 'rgba(255,233,189,0.98)' },
   { body: 'Saturn', label: 'Saturn', color: 'rgba(255,233,161,0.98)' },
+  { body: 'Uranus', label: 'Uranus', color: 'rgba(179, 236, 255, 0.98)' },
+  { body: 'Neptune', label: 'Neptune', color: 'rgba(145, 176, 255, 0.98)' },
+  { body: 'Pluto', label: 'Pluto', color: 'rgba(214, 203, 186, 0.98)' },
 ];
 const planetObjects = planetDefs.map((def) => {
   const marker = createCrossMarkerSprite(def.color);
