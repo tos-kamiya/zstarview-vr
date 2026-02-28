@@ -31,7 +31,8 @@ const EARTH_OBLIQUITY_DEG = 23.439291;
 const CITY_INDEX_URL = `${import.meta.env.BASE_URL}data/cities-index-v2.json`;
 const CITY_INDEX_GZ_URL = `${CITY_INDEX_URL}.gz`;
 const DEFAULT_MAX_MAG = 6.0;
-const EXTENDED_MAX_MAG = 7.0;
+const EXTENDED_MAX_MAG_7 = 7.0;
+const EXTENDED_MAX_MAG_8 = 8.0;
 const APP_QUERY_PARAMS = new URLSearchParams(window.location.search);
 
 const canvas = document.getElementById('scene');
@@ -51,18 +52,20 @@ function parseMaxMagFromUrl(searchParams) {
   if (value == null || value.trim() === '') return DEFAULT_MAX_MAG;
   const parsed = Number.parseFloat(value);
   if (!Number.isFinite(parsed)) return DEFAULT_MAX_MAG;
-  if (parsed >= EXTENDED_MAX_MAG) return EXTENDED_MAX_MAG;
+  if (parsed >= EXTENDED_MAX_MAG_8) return EXTENDED_MAX_MAG_8;
+  if (parsed >= EXTENDED_MAX_MAG_7) return EXTENDED_MAX_MAG_7;
   return DEFAULT_MAX_MAG;
 }
 
 const desktopViewMode = parseViewModeFromUrl(APP_QUERY_PARAMS);
 const requestedMaxMag = parseMaxMagFromUrl(APP_QUERY_PARAMS);
-const shouldLoadExtraStars = requestedMaxMag >= EXTENDED_MAX_MAG;
+const shouldLoadExtraStars = requestedMaxMag > DEFAULT_MAX_MAG;
 const fisheyeEnabled = desktopViewMode === VIEW_MODE_FISHEYE_180;
 const STAR_SIZE_SCALE = fisheyeEnabled ? 8.0 : 1.0;
 let displayedStarCount = STAR_META.usedRows;
 let loadedMaxMag = STAR_META.maxVmag;
-let extendedStarsLoaded = false;
+let extra7StarsLoaded = false;
+let extra8StarsLoaded = false;
 let extendedStarsLoading = false;
 let extendedStarsLoadPromise = null;
 let pendingExtendedStarsSplash = false;
@@ -1006,24 +1009,34 @@ function showVrSplash(text, durationMs) {
 }
 
 async function ensureExtendedStarsLoaded() {
-  if (!shouldLoadExtraStars || extendedStarsLoaded) return true;
+  if (!shouldLoadExtraStars || loadedMaxMag >= requestedMaxMag) return true;
   if (extendedStarsLoadPromise) return extendedStarsLoadPromise;
 
   extendedStarsLoading = true;
-  extendedStarsLoadPromise = import('./generated/stars-data-extra-7.js')
-    .then((extra) => {
-      addStarLayers(extra.STAR_EXTRA_7_LAYERS);
-      displayedStarCount += extra.STAR_EXTRA_7_META.usedRows;
-      loadedMaxMag = Math.max(loadedMaxMag, extra.STAR_EXTRA_7_META.maxVmag);
-      extendedStarsLoaded = true;
-      return true;
-    })
+  extendedStarsLoadPromise = (async () => {
+    if (requestedMaxMag >= EXTENDED_MAX_MAG_7 && !extra7StarsLoaded) {
+      const extra7 = await import('./generated/stars-data-extra-7.js');
+      addStarLayers(extra7.STAR_EXTRA_7_LAYERS);
+      displayedStarCount += extra7.STAR_EXTRA_7_META.usedRows;
+      loadedMaxMag = Math.max(loadedMaxMag, extra7.STAR_EXTRA_7_META.maxVmag);
+      extra7StarsLoaded = true;
+    }
+    if (requestedMaxMag >= EXTENDED_MAX_MAG_8 && !extra8StarsLoaded) {
+      const extra8 = await import('./generated/stars-data-extra-8.js');
+      addStarLayers(extra8.STAR_EXTRA_8_LAYERS);
+      displayedStarCount += extra8.STAR_EXTRA_8_META.usedRows;
+      loadedMaxMag = Math.max(loadedMaxMag, extra8.STAR_EXTRA_8_META.maxVmag);
+      extra8StarsLoaded = true;
+    }
+    return true;
+  })()
     .catch((error) => {
       console.warn('Failed to load extended star catalog:', error);
-      return false;
+      return true;
     })
     .finally(() => {
       extendedStarsLoading = false;
+      extendedStarsLoadPromise = null;
     });
 
   return extendedStarsLoadPromise;
@@ -1084,7 +1097,7 @@ async function prepareVrButton() {
       enterVrButton.textContent = 'Exit VR';
       setStatus('Immersive VR session started');
       showVrSplash(locationSummaryText || activeLocation.name, 3000);
-      pendingExtendedStarsSplash = shouldLoadExtraStars && !extendedStarsLoaded;
+      pendingExtendedStarsSplash = shouldLoadExtraStars && loadedMaxMag < requestedMaxMag;
 
       nextSession.addEventListener('end', () => {
         session = null;
@@ -1183,7 +1196,7 @@ renderer.setAnimationLoop((_time, xrFrame) => {
     if (vrSplashSprite) {
       if (nowMs > vrSplashUntilMs) {
         clearVrSplash();
-        if (pendingExtendedStarsSplash && !extendedStarsLoading && !extendedStarsLoaded) {
+        if (pendingExtendedStarsSplash && !extendedStarsLoading && loadedMaxMag < requestedMaxMag) {
           pendingExtendedStarsSplash = false;
           showVrSplash('Loading star data...', Number.POSITIVE_INFINITY);
           ensureExtendedStarsLoaded().finally(() => {
@@ -1243,6 +1256,14 @@ async function initializeLocation() {
   }
 
   updateSolarSystemMarkers();
+
+  if (shouldLoadExtraStars && !renderer.xr.isPresenting) {
+    void ensureExtendedStarsLoaded().then(() => {
+      setStatus(
+        `${desktopModeLabel()} (${activeLocation.name} ${activeLocation.lat.toFixed(3)}N, ${activeLocation.lon.toFixed(3)}E / ${sourceTag} / stars: ${displayedStarCount} / maxMag: ${loadedMaxMag.toFixed(1)})`,
+      );
+    });
+  }
 }
 
 initializeLocation();

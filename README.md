@@ -14,6 +14,8 @@ You can experience the app by opening the URL above.
   - [Open default URL](https://tos-kamiya.github.io/zstarview-vr/)
 - Extended stars (`maxMag=7`):
   - [Open with `maxMag=7`](https://tos-kamiya.github.io/zstarview-vr/?maxMag=7)
+- Extended stars (`maxMag=8`):
+  - [Open with `maxMag=8`](https://tos-kamiya.github.io/zstarview-vr/?maxMag=8)
 
 Major cities (about 20):
 
