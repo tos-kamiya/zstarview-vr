@@ -106,3 +106,15 @@ Rule:
 - If you change `data/cities1000.txt` or `scripts/generate-cities-data.mjs`,
   regenerate and commit `public/data/cities-index-v2.json` in the same change.
 - If you change city generator scripts, also regenerate and commit `public/data/cities-index-v2.json.gz`.
+
+## Recent Updates
+
+### v0.5.0 (2026-03-01)
+
+- **Planet Rendering Upgrade**:
+  - Replaced planet cross markers with dynamic disk sprites.
+  - Added bloom-like effects using radial gradients and `AdditiveBlending`.
+  - Implemented magnitude-based scaling (dimmer planets appear smaller).
+  - Added scaling clip at -1.5 magnitude to prevent oversized disks for bright planets like Venus.
+- **Astronomy Engine Integration**:
+  - Now dynamically calculates planet visual magnitude using `Astronomy.Illumination`.
