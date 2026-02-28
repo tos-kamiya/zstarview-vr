@@ -17,7 +17,8 @@ const BRIGHTEST_VMAG = -1.5;
 const BRIGHT_LAYER_SIZE = 2.8;
 const FAINT_LAYER_SIZE = 1.1;
 const BRIGHT_LAYER_OPACITY = 1.0;
-const FAINT_LAYER_OPACITY = 0.82;
+const FAINT_LAYER_OPACITY = 0.06;
+const OPACITY_CURVE_EXP = 2.2;
 
 function bvToRgb(bvRaw) {
   const bv = Number.isFinite(bvRaw) ? bvRaw : NaN;
@@ -60,10 +61,11 @@ function createEmptyLayers() {
   const layers = [];
   for (let i = 0; i < LAYER_COUNT; i += 1) {
     const t = i / Math.max(1, LAYER_COUNT - 1);
+    const tOpacity = Math.pow(t, OPACITY_CURVE_EXP);
     layers.push({
       name: `l${String(i).padStart(2, '0')}`,
       size: lerp(BRIGHT_LAYER_SIZE, FAINT_LAYER_SIZE, t),
-      opacity: lerp(BRIGHT_LAYER_OPACITY, FAINT_LAYER_OPACITY, t),
+      opacity: lerp(BRIGHT_LAYER_OPACITY, FAINT_LAYER_OPACITY, tOpacity),
       positions: [],
       colors: [],
     });
