@@ -99,7 +99,7 @@ const fisheyePostMaterial = new THREE.ShaderMaterial({
     uniform float uAspect;
 
     void main() {
-      vec2 p = vec2(vUv.x * 2.0 - 1.0, 1.0 - vUv.y * 2.0);
+      vec2 p = vec2(vUv.x * 2.0 - 1.0, vUv.y * 2.0 - 1.0);
       vec2 q = p;
       if (uAspect >= 1.0) {
         q.x *= uAspect;
