@@ -101,4 +101,4 @@ GitHub Pages（Quest 3 など対応デバイス・ブラウザ向け）:
 
 ## 謝辞
 
-このプロジェクトは OpenAI GPT-5（Codex）の支援を受けて開発されました。
+このプロジェクトは Google Gemini 2.0 (Pro/Experimental) および OpenAI GPT-5（Codex）の支援を受けて開発されました。

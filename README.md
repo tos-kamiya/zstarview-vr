@@ -100,4 +100,4 @@ For build/development/setup details, see:
 
 ## Acknowledgements
 
-This project was developed with assistance from OpenAI GPT-5 (Codex).
+This project was developed with assistance from Google Gemini 2.0 (Pro/Experimental) and OpenAI GPT-5 (Codex).
