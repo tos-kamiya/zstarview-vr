@@ -1059,10 +1059,10 @@ if (fisheyeEnabled) {
         desktopLook.yaw -= DESKTOP_YAW_STEP_RAD;
         break;
       case 'ArrowUp':
-        desktopLook.pitch = Math.max(-DESKTOP_PITCH_LIMIT_RAD, desktopLook.pitch - DESKTOP_PITCH_STEP_RAD);
+        desktopLook.pitch = Math.min(DESKTOP_PITCH_LIMIT_RAD, desktopLook.pitch + DESKTOP_PITCH_STEP_RAD);
         break;
       case 'ArrowDown':
-        desktopLook.pitch = Math.min(DESKTOP_PITCH_LIMIT_RAD, desktopLook.pitch + DESKTOP_PITCH_STEP_RAD);
+        desktopLook.pitch = Math.max(-DESKTOP_PITCH_LIMIT_RAD, desktopLook.pitch - DESKTOP_PITCH_STEP_RAD);
         break;
       default:
         handled = false;
