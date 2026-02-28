@@ -10,6 +10,12 @@ const outputExtra8Path = resolve(ROOT, 'src/generated/stars-data-extra-8.js');
 const BASE_MAX_VMAG = 6.0;
 const EXTRA7_MAX_VMAG = 7.0;
 const EXTRA8_MAX_VMAG = 8.0;
+const LAYER_COUNT = 10;
+const BRIGHTEST_VMAG = -1.5;
+const BRIGHT_LAYER_SIZE = 2.8;
+const FAINT_LAYER_SIZE = 1.1;
+const BRIGHT_LAYER_OPACITY = 1.0;
+const FAINT_LAYER_OPACITY = 0.82;
 
 function bvToRgb(bvRaw) {
   const bv = Number.isFinite(bvRaw) ? bvRaw : NaN;
@@ -22,16 +28,19 @@ function bvToRgb(bvRaw) {
 }
 
 function brightnessFromVmag(vmag) {
-  const bright = -1.5;
-  const faint = BASE_MAX_VMAG;
+  const bright = BRIGHTEST_VMAG;
+  const faint = EXTRA8_MAX_VMAG;
   const t = Math.max(0, Math.min(1, (faint - vmag) / (faint - bright)));
   return 0.25 + 0.75 * Math.pow(t, 1.08);
 }
 
-function layerForVmag(vmag) {
-  if (vmag <= 1.5) return 'bright';
-  if (vmag <= 3.5) return 'mid';
-  return 'faint';
+function lerp(a, b, t) {
+  return a + (b - a) * t;
+}
+
+function layerIndexForVmag(vmag) {
+  const t = Math.max(0, Math.min(1, (vmag - BRIGHTEST_VMAG) / (EXTRA8_MAX_VMAG - BRIGHTEST_VMAG)));
+  return Math.max(0, Math.min(LAYER_COUNT - 1, Math.floor(t * LAYER_COUNT)));
 }
 
 function toCartesian(raHours, decDeg) {
@@ -46,11 +55,18 @@ function toCartesian(raHours, decDeg) {
 }
 
 function createEmptyLayers() {
-  return {
-    bright: { size: 2.8, opacity: 1.0, positions: [], colors: [] },
-    mid: { size: 1.9, opacity: 0.95, positions: [], colors: [] },
-    faint: { size: 1.1, opacity: 0.82, positions: [], colors: [] },
-  };
+  const layers = [];
+  for (let i = 0; i < LAYER_COUNT; i += 1) {
+    const t = i / Math.max(1, LAYER_COUNT - 1);
+    layers.push({
+      name: `l${String(i).padStart(2, '0')}`,
+      size: lerp(BRIGHT_LAYER_SIZE, FAINT_LAYER_SIZE, t),
+      opacity: lerp(BRIGHT_LAYER_OPACITY, FAINT_LAYER_OPACITY, t),
+      positions: [],
+      colors: [],
+    });
+  }
+  return layers;
 }
 
 const lines = readFileSync(inputPath, 'utf-8').split(/\r?\n/);
@@ -79,20 +95,20 @@ for (let i = 1; i < lines.length; i += 1) {
   const [r255, g255, b255] = bvToRgb(bv);
   const brightness = brightnessFromVmag(vmag);
   const color = [(r255 / 255) * brightness, (g255 / 255) * brightness, (b255 / 255) * brightness];
-  const layerName = layerForVmag(vmag);
+  const layerIndex = layerIndexForVmag(vmag);
 
   if (vmag <= BASE_MAX_VMAG) {
-    const layer = baseLayers[layerName];
+    const layer = baseLayers[layerIndex];
     layer.positions.push(x, y, z);
     layer.colors.push(...color);
     usedBase += 1;
   } else if (vmag <= EXTRA7_MAX_VMAG) {
-    const layer = extra7Layers[layerName];
+    const layer = extra7Layers[layerIndex];
     layer.positions.push(x, y, z);
     layer.colors.push(...color);
     usedExtra7 += 1;
   } else {
-    const layer = extra8Layers[layerName];
+    const layer = extra8Layers[layerIndex];
     layer.positions.push(x, y, z);
     layer.colors.push(...color);
     usedExtra8 += 1;
@@ -101,10 +117,10 @@ for (let i = 1; i < lines.length; i += 1) {
 
 function layersToJsArray(layers) {
   return `[\n` +
-    Object.entries(layers)
-      .map(([name, layer]) => {
+    layers
+      .map((layer) => {
         return `  {\n` +
-          `    name: '${name}',\n` +
+          `    name: '${layer.name}',\n` +
           `    size: ${layer.size},\n` +
           `    opacity: ${layer.opacity},\n` +
           `    positions: [${layer.positions.join(',')}],\n` +
