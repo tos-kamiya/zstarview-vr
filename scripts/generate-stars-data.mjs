@@ -15,9 +15,9 @@ const EXTRA9_MAX_VMAG = 9.0;
 const LAYER_COUNT = 10;
 const BRIGHTEST_VMAG = -1.5;
 const BRIGHT_LAYER_SIZE = 2.8;
-const FAINT_LAYER_SIZE = 1.1;
+const FAINT_LAYER_SIZE = 0.9;
 const BRIGHT_LAYER_OPACITY = 1.0;
-const FAINT_LAYER_OPACITY = 0.06;
+const FAINT_LAYER_OPACITY = 0.03;
 const OPACITY_CURVE_EXP = 2.2;
 
 function bvToRgb(bvRaw) {
@@ -34,7 +34,7 @@ function brightnessFromVmag(vmag) {
   const bright = BRIGHTEST_VMAG;
   const faint = EXTRA9_MAX_VMAG;
   const t = Math.max(0, Math.min(1, (faint - vmag) / (faint - bright)));
-  return 0.25 + 0.75 * Math.pow(t, 1.08);
+  return 0.16 + 0.84 * Math.pow(t, 1.2);
 }
 
 function lerp(a, b, t) {
