@@ -14,15 +14,27 @@ const SKY_RADIUS = 450;
 const SYMBOL_RADIUS = SKY_RADIUS - 8;
 const FAMOUS_STAR_HIT_ANGLE_DEG = 1.2;
 const FAMOUS_STAR_HIT_COS = Math.cos(THREE.MathUtils.degToRad(FAMOUS_STAR_HIT_ANGLE_DEG));
+const VIEW_MODE_MONO = 'mono';
+const VIEW_MODE_FISHEYE_180 = 'fisheye180';
+const FISHEYE_CUBE_SIZE = 1024;
 const AU_KM = 149597870.7;
 const EARTH_OBLIQUITY_DEG = 23.439291;
 const CITY_INDEX_URL = `${import.meta.env.BASE_URL}data/cities-index-v2.json`;
 const CITY_INDEX_GZ_URL = `${CITY_INDEX_URL}.gz`;
+const APP_QUERY_PARAMS = new URLSearchParams(window.location.search);
 
 const canvas = document.getElementById('scene');
 const statusEl = document.getElementById('status');
 const enterVrButton = document.getElementById('enter-vr');
 let locationSummaryText = '';
+
+function parseViewModeFromUrl(searchParams) {
+  const value = (searchParams.get('view') || '').trim().toLowerCase();
+  if (value === VIEW_MODE_FISHEYE_180) return VIEW_MODE_FISHEYE_180;
+  return VIEW_MODE_MONO;
+}
+
+const desktopViewMode = parseViewModeFromUrl(APP_QUERY_PARAMS);
 
 const renderer = new THREE.WebGLRenderer({
   canvas,
@@ -39,6 +51,64 @@ scene.background = new THREE.Color(0x030711);
 
 const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 1000);
 camera.position.set(0, EYE_HEIGHT_M, 0);
+const fisheyeViewRotation = new THREE.Matrix3();
+const fisheyeViewRotationMatrix4 = new THREE.Matrix4();
+
+const fisheyeCubeTarget = new THREE.WebGLCubeRenderTarget(FISHEYE_CUBE_SIZE, {
+  generateMipmaps: false,
+  minFilter: THREE.LinearFilter,
+  magFilter: THREE.LinearFilter,
+});
+const fisheyeCubeCamera = new THREE.CubeCamera(0.1, 1200, fisheyeCubeTarget);
+
+const fisheyePostScene = new THREE.Scene();
+const fisheyePostCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+const fisheyePostMaterial = new THREE.ShaderMaterial({
+  depthWrite: false,
+  depthTest: false,
+  uniforms: {
+    uCubeTex: { value: fisheyeCubeTarget.texture },
+    uViewRot: { value: fisheyeViewRotation },
+    uBackground: { value: new THREE.Color(0x000000) },
+  },
+  vertexShader: `
+    varying vec2 vUv;
+    void main() {
+      vUv = uv;
+      gl_Position = vec4(position.xy, 0.0, 1.0);
+    }
+  `,
+  fragmentShader: `
+    varying vec2 vUv;
+    uniform samplerCube uCubeTex;
+    uniform mat3 uViewRot;
+    uniform vec3 uBackground;
+
+    void main() {
+      vec2 p = vec2(vUv.x * 2.0 - 1.0, 1.0 - vUv.y * 2.0);
+      float r = length(p);
+      if (r > 1.0) {
+        gl_FragColor = vec4(uBackground, 1.0);
+        return;
+      }
+
+      float theta = r * (0.5 * 3.141592653589793);
+      float phi = atan(p.y, p.x);
+      float sinTheta = sin(theta);
+
+      vec3 dirLocal = vec3(
+        sinTheta * cos(phi),
+        sinTheta * sin(phi),
+        -cos(theta)
+      );
+      vec3 dirWorld = normalize(uViewRot * dirLocal);
+      vec4 color = textureCube(uCubeTex, dirWorld);
+      gl_FragColor = vec4(color.rgb, 1.0);
+    }
+  `,
+});
+const fisheyePostQuad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), fisheyePostMaterial);
+fisheyePostScene.add(fisheyePostQuad);
 
 const hemiLight = new THREE.HemisphereLight(0x6f8ec9, 0x172133, 0.4);
 scene.add(hemiLight);
@@ -409,12 +479,11 @@ function pickCity(cities, cityName, countryCode = null) {
 }
 
 async function resolveLocationFromUrl() {
-  const params = new URLSearchParams(window.location.search);
-  const fromLatLon = parseLatLonFromUrl(params);
+  const fromLatLon = parseLatLonFromUrl(APP_QUERY_PARAMS);
   if (fromLatLon) return { ...fromLatLon, source: 'latlon' };
 
-  const city = params.get('city');
-  const country = params.get('country');
+  const city = APP_QUERY_PARAMS.get('city');
+  const country = APP_QUERY_PARAMS.get('country');
   if (city && city.trim()) {
     try {
       const cities = await loadCityIndex();
@@ -856,6 +925,31 @@ function setStatus(text) {
   statusEl.textContent = `Status: ${text}`;
 }
 
+function desktopModeLabel() {
+  if (desktopViewMode === VIEW_MODE_FISHEYE_180) {
+    return 'Desktop mode (fisheye180)';
+  }
+  return 'Desktop mode';
+}
+
+function renderDesktopFrame() {
+  if (desktopViewMode !== VIEW_MODE_FISHEYE_180) {
+    renderer.render(scene, camera);
+    return;
+  }
+
+  fisheyeCubeCamera.position.copy(camera.position);
+  fisheyeCubeCamera.update(renderer, scene);
+
+  fisheyeViewRotationMatrix4.makeRotationFromQuaternion(camera.quaternion);
+  fisheyeViewRotation.setFromMatrix4(fisheyeViewRotationMatrix4);
+  fisheyePostMaterial.uniforms.uViewRot.value.copy(fisheyeViewRotation);
+
+  renderer.setRenderTarget(null);
+  renderer.clear();
+  renderer.render(fisheyePostScene, fisheyePostCamera);
+}
+
 async function prepareVrButton() {
   if (!navigator.xr) {
     enterVrButton.disabled = true;
@@ -896,7 +990,7 @@ async function prepareVrButton() {
       nextSession.addEventListener('end', () => {
         session = null;
         enterVrButton.textContent = 'Enter VR';
-        setStatus('Desktop mode');
+        setStatus(desktopModeLabel());
         if (vrSplashSprite) {
           scene.remove(vrSplashSprite);
           vrSplashSprite = null;
@@ -907,7 +1001,7 @@ async function prepareVrButton() {
     }
   });
 
-  setStatus('Desktop mode (VR ready)');
+  setStatus(`${desktopModeLabel()} (VR ready)`);
 }
 
 function onResize() {
@@ -963,7 +1057,11 @@ renderer.setAnimationLoop((_time, xrFrame) => {
 
   updateFamousStarHoverLabels(xrFrame);
 
-  renderer.render(scene, camera);
+  if (renderer.xr.isPresenting) {
+    renderer.render(scene, camera);
+  } else {
+    renderDesktopFrame();
+  }
 });
 
 async function initializeLocation() {
@@ -985,7 +1083,7 @@ async function initializeLocation() {
     return 'default';
   })();
   setStatus(
-    `Desktop mode (${activeLocation.name} ${activeLocation.lat.toFixed(3)}N, ${activeLocation.lon.toFixed(3)}E / ${sourceTag} / stars: ${STAR_META.usedRows})`,
+    `${desktopModeLabel()} (${activeLocation.name} ${activeLocation.lat.toFixed(3)}N, ${activeLocation.lon.toFixed(3)}E / ${sourceTag} / stars: ${STAR_META.usedRows})`,
   );
   if (activeLocation.source === 'fallback_city_not_found') {
     const cc = activeLocation.requestedCountry ? ` in country '${activeLocation.requestedCountry}'` : '';
