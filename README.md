@@ -8,7 +8,13 @@ Try it on GitHub Pages (for Quest 3 and other supported devices/browsers):
 
 You can experience the app by opening the URL above.
 
-## Usage
+## Screenshot
+
+Desktop mode (`?view=fisheye180`):
+
+![Desktop fisheye 180 screenshot](./imgs/browser-fisheye180.png)
+
+## Usage (VR Mode)
 
 1. Open:
    - https://tos-kamiya.github.io/zstarview-vr/
@@ -28,6 +34,14 @@ Location resolution priority:
 
 If `city` is not found (or city index loading fails), the app falls back to default (`Tokyo`) and explicitly shows the fallback reason in status/splash text.
 If `country` is also specified, city lookup is filtered by that country code (ISO 3166-1 alpha-2, e.g. `JP`, `US`).
+
+## Usage (Desktop Mode)
+
+1. Open with `?view=fisheye180`:
+   - `https://tos-kamiya.github.io/zstarview-vr/?view=fisheye180`
+2. Use arrow keys:
+   - `←/→` for azimuth
+   - `↑/↓` for altitude
 
 ## License
 
