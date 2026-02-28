@@ -16,6 +16,7 @@ const SYMBOL_RADIUS = SKY_RADIUS - 8;
 const LABEL_SCALE_X = 72.0;
 const LABEL_SCALE_Y = 27.0;
 const FAMOUS_LABEL_SCALE_X = LABEL_SCALE_X * 1.2;
+const LABEL_ALT_OFFSET_DEG = 1.2;
 const APP_VERSION = packageJson.version;
 const FAMOUS_STAR_HIT_ANGLE_DEG = 1.2;
 const FAMOUS_STAR_HIT_COS = Math.cos(THREE.MathUtils.degToRad(FAMOUS_STAR_HIT_ANGLE_DEG));
@@ -58,7 +59,7 @@ const desktopViewMode = parseViewModeFromUrl(APP_QUERY_PARAMS);
 const requestedMaxMag = parseMaxMagFromUrl(APP_QUERY_PARAMS);
 const shouldLoadExtraStars = requestedMaxMag >= EXTENDED_MAX_MAG;
 const fisheyeEnabled = desktopViewMode === VIEW_MODE_FISHEYE_180;
-const STAR_SIZE_SCALE = fisheyeEnabled ? 2.0 : 1.0;
+const STAR_SIZE_SCALE = (fisheyeEnabled ? 2.0 : 1.0) * 2.0;
 let displayedStarCount = STAR_META.usedRows;
 let loadedMaxMag = STAR_META.maxVmag;
 let extendedStarsLoaded = false;
@@ -879,7 +880,7 @@ function updateSolarSystemMarkers() {
     const scale = spriteScaleFromAngularDiameter(deg, SYMBOL_RADIUS);
     sunSprite.scale.set(scale, scale, 1.0);
     sunLabel.visible = true;
-    sunLabel.position.copy(altAzToVector(sunPos.altitude + 1.2, sunPos.azimuth, SYMBOL_RADIUS));
+    sunLabel.position.copy(altAzToVector(sunPos.altitude + LABEL_ALT_OFFSET_DEG, sunPos.azimuth, SYMBOL_RADIUS));
     const sunDir = altAzToVector(sunPos.altitude, sunPos.azimuth, 1.0).normalize();
     skyMaterial.uniforms.uSunDir.value.copy(sunDir);
     skyMaterial.uniforms.uSunAltDeg.value = sunPos.altitude;
@@ -893,7 +894,7 @@ function updateSolarSystemMarkers() {
     const scale = spriteScaleFromAngularDiameter(deg, SYMBOL_RADIUS);
     moonSprite.scale.set(scale, scale, 1.0);
     moonLabel.visible = true;
-    moonLabel.position.copy(altAzToVector(moonPos.altitude + 1.2, moonPos.azimuth, SYMBOL_RADIUS));
+    moonLabel.position.copy(altAzToVector(moonPos.altitude + LABEL_ALT_OFFSET_DEG, moonPos.azimuth, SYMBOL_RADIUS));
     for (const planet of planetObjects) {
       planet.marker.scale.set(scale, scale, 1.0);
     }
@@ -919,7 +920,7 @@ function updateSolarSystemMarkers() {
       continue;
     }
     planet.label.visible = true;
-    const labelPos = altAzToVector(pos.altitude + 1.2, pos.azimuth, SYMBOL_RADIUS);
+    const labelPos = altAzToVector(pos.altitude + LABEL_ALT_OFFSET_DEG, pos.azimuth, SYMBOL_RADIUS);
     planet.label.position.copy(labelPos);
   }
 
