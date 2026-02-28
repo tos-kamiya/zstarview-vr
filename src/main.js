@@ -287,6 +287,48 @@ function createCircleOutlineSprite(strokeStyle) {
   return new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false }));
 }
 
+function createDiskSprite(fillStyle = 'rgba(235, 240, 255, 0.98)') {
+  const cnv = document.createElement('canvas');
+  cnv.width = 128;
+  cnv.height = 128;
+  const ctx = cnv.getContext('2d');
+  ctx.clearRect(0, 0, cnv.width, cnv.height);
+
+  const cx = cnv.width / 2;
+  const cy = cnv.height / 2;
+
+  // 外側の光彩（ブルーム）用の色（透明度を0にしたものを作成）
+  const transparentColor = fillStyle.replace(/[\d.]+\)$/g, '0)');
+
+  // 放射状グラデーションを作成
+  const gradient = ctx.createRadialGradient(cx, cy, 10, cx, cy, 60);
+  gradient.addColorStop(0.0, fillStyle);
+  gradient.addColorStop(0.4, fillStyle);
+  gradient.addColorStop(1.0, transparentColor);
+
+  ctx.fillStyle = gradient;
+  ctx.beginPath();
+  ctx.arc(cx, cy, 60, 0, Math.PI * 2);
+  ctx.fill();
+
+  // 中心コア部分
+  ctx.fillStyle = fillStyle;
+  ctx.beginPath();
+  ctx.arc(cx, cy, 25, 0, Math.PI * 2);
+  ctx.fill();
+
+  const texture = new THREE.CanvasTexture(cnv);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.needsUpdate = true;
+  // AdditiveBlendingで光っている感じを強調
+  return new THREE.Sprite(new THREE.SpriteMaterial({
+    map: texture,
+    transparent: true,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending
+  }));
+}
+
 function createVrSplashSprite(text) {
   const cnv = document.createElement('canvas');
   cnv.width = 1280;
@@ -718,8 +760,8 @@ const planetDefs = [
   { body: 'Pluto', label: 'Pluto', color: 'rgba(214, 203, 186, 0.98)' },
 ];
 const planetObjects = planetDefs.map((def) => {
-  const marker = createCrossMarkerSprite(def.color);
-  marker.scale.set(3.0, 3.0, 1.0);
+  const marker = createDiskSprite(def.color);
+  marker.scale.set(1.0, 1.0, 1.0);
   const label = createTextSprite(def.label, def.color);
   label.scale.set(LABEL_SCALE_X, LABEL_SCALE_Y, 1.0);
   solarSystemGroup.add(marker);
@@ -864,6 +906,15 @@ function placeBodySprite({ body, sprite, minAlt = -0.8, alwaysVisible = false })
   const now = new Date();
   const equ = Astronomy.Equator(body, now, observer, true, true);
   const hor = Astronomy.Horizon(now, observer, equ.ra, equ.dec, 'normal');
+
+  let mag = null;
+  try {
+    const ill = Astronomy.Illumination(body, now);
+    mag = ill.mag;
+  } catch (e) {
+    // Some bodies might not have illumination/magnitude data
+  }
+
   if (!alwaysVisible && hor.altitude <= minAlt) {
     sprite.visible = false;
     return;
@@ -871,7 +922,7 @@ function placeBodySprite({ body, sprite, minAlt = -0.8, alwaysVisible = false })
   sprite.visible = true;
   const pos = altAzToVector(hor.altitude, hor.azimuth, SYMBOL_RADIUS);
   sprite.position.copy(pos);
-  return { dist: equ.dist, altitude: hor.altitude, azimuth: hor.azimuth };
+  return { dist: equ.dist, altitude: hor.altitude, azimuth: hor.azimuth, mag };
 }
 
 function updateSolarSystemMarkers() {
@@ -901,19 +952,12 @@ function updateSolarSystemMarkers() {
     moonSprite.scale.set(scale, scale, 1.0);
     moonLabel.visible = true;
     moonLabel.position.copy(altAzToVector(moonPos.altitude + LABEL_ALT_OFFSET_DEG, moonPos.azimuth, SYMBOL_RADIUS));
-    for (const planet of planetObjects) {
-      planet.marker.scale.set(scale, scale, 1.0);
-    }
-    zenithMarker.scale.set(scale, scale, 1.0);
+        zenithMarker.scale.set(scale, scale, 1.0);
     nadirMarker.scale.set(scale, scale, 1.0);
     updateHorizonTicksByAngularSize(deg * 2.0);
   } else {
     moonLabel.visible = false;
-    // Fallback: average apparent moon diameter (about 0.52 deg), doubled.
     const fallbackScale = spriteScaleFromAngularDiameter(0.52, SYMBOL_RADIUS);
-    for (const planet of planetObjects) {
-      planet.marker.scale.set(fallbackScale, fallbackScale, 1.0);
-    }
     zenithMarker.scale.set(fallbackScale, fallbackScale, 1.0);
     nadirMarker.scale.set(fallbackScale, fallbackScale, 1.0);
     updateHorizonTicksByAngularSize(1.04);
@@ -925,6 +969,18 @@ function updateSolarSystemMarkers() {
       planet.label.visible = false;
       continue;
     }
+
+        if (pos.mag != null) {
+      // Planet scale based on magnitude.
+      // Clip at -1.5 magnitude so bright planets (like Venus) don't get too large.
+      // They will instead look brighter via bloom effect.
+      const effectiveMag = Math.max(-1.5, pos.mag);
+      const pScale = Math.max(0.6, 3.2 - 0.4 * effectiveMag) * (SYMBOL_RADIUS / 450);
+      planet.marker.scale.set(pScale, pScale, 1.0);
+    } else {
+      planet.marker.scale.set(1.5, 1.5, 1.0);
+    }
+
     planet.label.visible = true;
     const labelPos = altAzToVector(pos.altitude + LABEL_ALT_OFFSET_DEG, pos.azimuth, SYMBOL_RADIUS);
     planet.label.position.copy(labelPos);
