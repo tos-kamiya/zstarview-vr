@@ -17,6 +17,9 @@ const FAMOUS_STAR_HIT_COS = Math.cos(THREE.MathUtils.degToRad(FAMOUS_STAR_HIT_AN
 const VIEW_MODE_MONO = 'mono';
 const VIEW_MODE_FISHEYE_180 = 'fisheye180';
 const FISHEYE_CUBE_SIZE = 1024;
+const DESKTOP_YAW_STEP_RAD = THREE.MathUtils.degToRad(3.0);
+const DESKTOP_PITCH_STEP_RAD = THREE.MathUtils.degToRad(2.0);
+const DESKTOP_PITCH_LIMIT_RAD = THREE.MathUtils.degToRad(85.0);
 const AU_KM = 149597870.7;
 const EARTH_OBLIQUITY_DEG = 23.439291;
 const CITY_INDEX_URL = `${import.meta.env.BASE_URL}data/cities-index-v2.json`;
@@ -1030,6 +1033,47 @@ window.addEventListener('resize', onResize);
 
 // Fixed initial heading: facing north.
 camera.lookAt(0, EYE_HEIGHT_M, -10);
+
+if (fisheyeEnabled) {
+  const desktopLook = {
+    yaw: 0.0,
+    pitch: 0.0,
+  };
+
+  function applyDesktopLook() {
+    camera.rotation.order = 'YXZ';
+    camera.rotation.y = desktopLook.yaw;
+    camera.rotation.x = desktopLook.pitch;
+    camera.rotation.z = 0.0;
+  }
+
+  window.addEventListener('keydown', (event) => {
+    if (renderer.xr.isPresenting) return;
+
+    let handled = true;
+    switch (event.key) {
+      case 'ArrowLeft':
+        desktopLook.yaw += DESKTOP_YAW_STEP_RAD;
+        break;
+      case 'ArrowRight':
+        desktopLook.yaw -= DESKTOP_YAW_STEP_RAD;
+        break;
+      case 'ArrowUp':
+        desktopLook.pitch = Math.min(DESKTOP_PITCH_LIMIT_RAD, desktopLook.pitch + DESKTOP_PITCH_STEP_RAD);
+        break;
+      case 'ArrowDown':
+        desktopLook.pitch = Math.max(-DESKTOP_PITCH_LIMIT_RAD, desktopLook.pitch - DESKTOP_PITCH_STEP_RAD);
+        break;
+      default:
+        handled = false;
+        break;
+    }
+
+    if (!handled) return;
+    event.preventDefault();
+    applyDesktopLook();
+  });
+}
 
 renderer.setAnimationLoop((_time, xrFrame) => {
   const nowMs = performance.now();
