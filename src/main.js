@@ -61,7 +61,7 @@ const desktopViewMode = parseViewModeFromUrl(APP_QUERY_PARAMS);
 const requestedMaxMag = parseMaxMagFromUrl(APP_QUERY_PARAMS);
 const shouldLoadExtraStars = requestedMaxMag > DEFAULT_MAX_MAG;
 const fisheyeEnabled = desktopViewMode === VIEW_MODE_FISHEYE_180;
-const STAR_SIZE_SCALE = fisheyeEnabled ? 8.0 : 1.0;
+const STAR_SIZE_SCALE = (fisheyeEnabled ? 8.0 : 1.0) * 1.5;
 let displayedStarCount = STAR_META.usedRows;
 let loadedMaxMag = STAR_META.maxVmag;
 let extra7StarsLoaded = false;
