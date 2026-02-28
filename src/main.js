@@ -541,8 +541,14 @@ scene.add(solarSystemGroup);
 
 const sunSprite = createCircleOutlineSprite('rgba(255, 214, 120, 0.98)');
 const moonSprite = createCircleOutlineSprite('rgba(206, 220, 255, 0.98)');
+const sunLabel = createTextSprite('Sun', 'rgba(255,228,166,0.98)');
+sunLabel.scale.set(36.0, 13.5, 1.0);
+const moonLabel = createTextSprite('Moon', 'rgba(206,220,255,0.98)');
+moonLabel.scale.set(36.0, 13.5, 1.0);
 solarSystemGroup.add(sunSprite);
 solarSystemGroup.add(moonSprite);
+solarSystemGroup.add(sunLabel);
+solarSystemGroup.add(moonLabel);
 
 const cardinalDefs = [
   { label: 'N', az: 0.0 },
@@ -738,10 +744,13 @@ function updateSolarSystemMarkers() {
     const deg = angularDiameterDeg(1392700.0, sunPos.dist);
     const scale = spriteScaleFromAngularDiameter(deg, SYMBOL_RADIUS);
     sunSprite.scale.set(scale, scale, 1.0);
+    sunLabel.visible = true;
+    sunLabel.position.copy(altAzToVector(sunPos.altitude + 1.2, sunPos.azimuth, SYMBOL_RADIUS));
     const sunDir = altAzToVector(sunPos.altitude, sunPos.azimuth, 1.0).normalize();
     skyMaterial.uniforms.uSunDir.value.copy(sunDir);
     skyMaterial.uniforms.uSunAltDeg.value = sunPos.altitude;
   } else {
+    sunLabel.visible = false;
     skyMaterial.uniforms.uSunAltDeg.value = -90.0;
   }
 
@@ -749,6 +758,8 @@ function updateSolarSystemMarkers() {
     const deg = angularDiameterDeg(3474.8, moonPos.dist);
     const scale = spriteScaleFromAngularDiameter(deg, SYMBOL_RADIUS);
     moonSprite.scale.set(scale, scale, 1.0);
+    moonLabel.visible = true;
+    moonLabel.position.copy(altAzToVector(moonPos.altitude + 1.2, moonPos.azimuth, SYMBOL_RADIUS));
     for (const planet of planetObjects) {
       planet.marker.scale.set(scale, scale, 1.0);
     }
@@ -756,6 +767,7 @@ function updateSolarSystemMarkers() {
     nadirMarker.scale.set(scale, scale, 1.0);
     updateHorizonTicksByAngularSize(deg * 2.0);
   } else {
+    moonLabel.visible = false;
     // Fallback: average apparent moon diameter (about 0.52 deg), doubled.
     const fallbackScale = spriteScaleFromAngularDiameter(0.52, SYMBOL_RADIUS);
     for (const planet of planetObjects) {
@@ -884,7 +896,7 @@ async function prepareVrButton() {
       nextSession.addEventListener('end', () => {
         session = null;
         enterVrButton.textContent = 'Enter VR';
-        setStatus('Desktop preview');
+        setStatus('Desktop mode');
         if (vrSplashSprite) {
           scene.remove(vrSplashSprite);
           vrSplashSprite = null;
@@ -895,7 +907,7 @@ async function prepareVrButton() {
     }
   });
 
-  setStatus('Desktop preview (VR ready)');
+  setStatus('Desktop mode (VR ready)');
 }
 
 function onResize() {
@@ -973,7 +985,7 @@ async function initializeLocation() {
     return 'default';
   })();
   setStatus(
-    `Desktop preview (${activeLocation.name} ${activeLocation.lat.toFixed(3)}N, ${activeLocation.lon.toFixed(3)}E / ${sourceTag} / stars: ${STAR_META.usedRows})`,
+    `Desktop mode (${activeLocation.name} ${activeLocation.lat.toFixed(3)}N, ${activeLocation.lon.toFixed(3)}E / ${sourceTag} / stars: ${STAR_META.usedRows})`,
   );
   if (activeLocation.source === 'fallback_city_not_found') {
     const cc = activeLocation.requestedCountry ? ` in country '${activeLocation.requestedCountry}'` : '';
