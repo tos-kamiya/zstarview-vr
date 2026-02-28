@@ -29,6 +29,8 @@ const AU_KM = 149597870.7;
 const EARTH_OBLIQUITY_DEG = 23.439291;
 const CITY_INDEX_URL = `${import.meta.env.BASE_URL}data/cities-index-v2.json`;
 const CITY_INDEX_GZ_URL = `${CITY_INDEX_URL}.gz`;
+const DEFAULT_MAX_MAG = 6.0;
+const EXTENDED_MAX_MAG = 7.0;
 const APP_QUERY_PARAMS = new URLSearchParams(window.location.search);
 
 const canvas = document.getElementById('scene');
@@ -43,9 +45,26 @@ function parseViewModeFromUrl(searchParams) {
   return VIEW_MODE_MONO;
 }
 
+function parseMaxMagFromUrl(searchParams) {
+  const value = searchParams.get('maxMag');
+  if (value == null || value.trim() === '') return DEFAULT_MAX_MAG;
+  const parsed = Number.parseFloat(value);
+  if (!Number.isFinite(parsed)) return DEFAULT_MAX_MAG;
+  if (parsed >= EXTENDED_MAX_MAG) return EXTENDED_MAX_MAG;
+  return DEFAULT_MAX_MAG;
+}
+
 const desktopViewMode = parseViewModeFromUrl(APP_QUERY_PARAMS);
+const requestedMaxMag = parseMaxMagFromUrl(APP_QUERY_PARAMS);
+const shouldLoadExtraStars = requestedMaxMag >= EXTENDED_MAX_MAG;
 const fisheyeEnabled = desktopViewMode === VIEW_MODE_FISHEYE_180;
 const STAR_SIZE_SCALE = fisheyeEnabled ? 2.0 : 1.0;
+let displayedStarCount = STAR_META.usedRows;
+let loadedMaxMag = STAR_META.maxVmag;
+let extendedStarsLoaded = false;
+let extendedStarsLoading = false;
+let extendedStarsLoadPromise = null;
+let pendingExtendedStarsSplash = false;
 
 if (fisheyeEnabled && hudEl) {
   hudEl.style.display = 'none';
@@ -587,12 +606,18 @@ const sky = new THREE.Mesh(
 sky.position.set(0, EYE_HEIGHT_M, 0);
 scene.add(sky);
 
-const starMeshes = STAR_LAYERS.map((layer, index) => {
-  const radius = SKY_RADIUS - 4 - index;
-  const mesh = createStarfieldFromLayer(layer, radius);
-  scene.add(mesh);
-  return mesh;
-});
+const starMeshes = [];
+
+function addStarLayers(layers) {
+  for (const layer of layers) {
+    const radius = SKY_RADIUS - 4 - starMeshes.length;
+    const mesh = createStarfieldFromLayer(layer, radius);
+    scene.add(mesh);
+    starMeshes.push(mesh);
+  }
+}
+
+addStarLayers(STAR_LAYERS);
 const equatorialRotation = new THREE.Quaternion();
 const equatorialBasisMatrix = new THREE.Matrix4();
 const worldToEquatorialMatrix3 = new THREE.Matrix3();
@@ -965,6 +990,44 @@ function setStatus(text) {
   statusEl.textContent = `Status: v${APP_VERSION} | ${text}`;
 }
 
+function clearVrSplash() {
+  if (!vrSplashSprite) return;
+  scene.remove(vrSplashSprite);
+  vrSplashSprite = null;
+  vrSplashUntilMs = 0;
+}
+
+function showVrSplash(text, durationMs) {
+  clearVrSplash();
+  vrSplashSprite = createVrSplashSprite(text);
+  scene.add(vrSplashSprite);
+  vrSplashUntilMs = Number.isFinite(durationMs) ? performance.now() + durationMs : Number.POSITIVE_INFINITY;
+}
+
+async function ensureExtendedStarsLoaded() {
+  if (!shouldLoadExtraStars || extendedStarsLoaded) return true;
+  if (extendedStarsLoadPromise) return extendedStarsLoadPromise;
+
+  extendedStarsLoading = true;
+  extendedStarsLoadPromise = import('./generated/stars-data-extra-7.js')
+    .then((extra) => {
+      addStarLayers(extra.STAR_EXTRA_7_LAYERS);
+      displayedStarCount += extra.STAR_EXTRA_7_META.usedRows;
+      loadedMaxMag = Math.max(loadedMaxMag, extra.STAR_EXTRA_7_META.maxVmag);
+      extendedStarsLoaded = true;
+      return true;
+    })
+    .catch((error) => {
+      console.warn('Failed to load extended star catalog:', error);
+      return false;
+    })
+    .finally(() => {
+      extendedStarsLoading = false;
+    });
+
+  return extendedStarsLoadPromise;
+}
+
 function desktopModeLabel() {
   if (desktopViewMode === VIEW_MODE_FISHEYE_180) {
     return 'Desktop mode (fisheye180)';
@@ -1019,22 +1082,15 @@ async function prepareVrButton() {
       session = nextSession;
       enterVrButton.textContent = 'Exit VR';
       setStatus('Immersive VR session started');
-      if (vrSplashSprite) {
-        scene.remove(vrSplashSprite);
-        vrSplashSprite = null;
-      }
-      vrSplashSprite = createVrSplashSprite(locationSummaryText || activeLocation.name);
-      scene.add(vrSplashSprite);
-      vrSplashUntilMs = performance.now() + 3000;
+      showVrSplash(locationSummaryText || activeLocation.name, 3000);
+      pendingExtendedStarsSplash = shouldLoadExtraStars && !extendedStarsLoaded;
 
       nextSession.addEventListener('end', () => {
         session = null;
         enterVrButton.textContent = 'Enter VR';
         setStatus(desktopModeLabel());
-        if (vrSplashSprite) {
-          scene.remove(vrSplashSprite);
-          vrSplashSprite = null;
-        }
+        pendingExtendedStarsSplash = false;
+        clearVrSplash();
       });
     } catch (error) {
       setStatus(`Failed to start VR (${error.message})`);
@@ -1125,8 +1181,16 @@ renderer.setAnimationLoop((_time, xrFrame) => {
 
     if (vrSplashSprite) {
       if (nowMs > vrSplashUntilMs) {
-        scene.remove(vrSplashSprite);
-        vrSplashSprite = null;
+        clearVrSplash();
+        if (pendingExtendedStarsSplash && !extendedStarsLoading && !extendedStarsLoaded) {
+          pendingExtendedStarsSplash = false;
+          showVrSplash('Loading star data...', Number.POSITIVE_INFINITY);
+          ensureExtendedStarsLoaded().finally(() => {
+            if (renderer.xr.isPresenting && vrSplashSprite && vrSplashUntilMs === Number.POSITIVE_INFINITY) {
+              clearVrSplash();
+            }
+          });
+        }
       } else {
         const headPos = new THREE.Vector3().setFromMatrixPosition(xrCam.matrixWorld);
         const headQuat = new THREE.Quaternion().setFromRotationMatrix(xrCam.matrixWorld);
@@ -1165,7 +1229,7 @@ async function initializeLocation() {
     return 'default';
   })();
   setStatus(
-    `${desktopModeLabel()} (${activeLocation.name} ${activeLocation.lat.toFixed(3)}N, ${activeLocation.lon.toFixed(3)}E / ${sourceTag} / stars: ${STAR_META.usedRows})`,
+    `${desktopModeLabel()} (${activeLocation.name} ${activeLocation.lat.toFixed(3)}N, ${activeLocation.lon.toFixed(3)}E / ${sourceTag} / stars: ${displayedStarCount} / maxMag: ${loadedMaxMag.toFixed(1)})`,
   );
   if (activeLocation.source === 'fallback_city_not_found') {
     const cc = activeLocation.requestedCountry ? ` in country '${activeLocation.requestedCountry}'` : '';

@@ -8,6 +8,36 @@ Try it on GitHub Pages (for Quest 3 and other supported devices/browsers):
 
 You can experience the app by opening the URL above.
 
+## Quick Links
+
+- Default:
+  - [Open default URL](https://tos-kamiya.github.io/zstarview-vr/)
+- Extended stars (`maxMag=7`):
+  - [Open with `maxMag=7`](https://tos-kamiya.github.io/zstarview-vr/?maxMag=7)
+
+Major cities (about 20):
+
+- [Tokyo, JP](https://tos-kamiya.github.io/zstarview-vr/?city=Tokyo&country=JP)
+- [Osaka, JP](https://tos-kamiya.github.io/zstarview-vr/?city=Osaka&country=JP)
+- [Matsue, JP](https://tos-kamiya.github.io/zstarview-vr/?city=Matsue&country=JP)
+- [Seoul, KR](https://tos-kamiya.github.io/zstarview-vr/?city=Seoul&country=KR)
+- [Beijing, CN](https://tos-kamiya.github.io/zstarview-vr/?city=Beijing&country=CN)
+- [Shanghai, CN](https://tos-kamiya.github.io/zstarview-vr/?city=Shanghai&country=CN)
+- [Taipei, TW](https://tos-kamiya.github.io/zstarview-vr/?city=Taipei&country=TW)
+- [Singapore, SG](https://tos-kamiya.github.io/zstarview-vr/?city=Singapore&country=SG)
+- [Bangkok, TH](https://tos-kamiya.github.io/zstarview-vr/?city=Bangkok&country=TH)
+- [Delhi, IN](https://tos-kamiya.github.io/zstarview-vr/?city=Delhi&country=IN)
+- [Dubai, AE](https://tos-kamiya.github.io/zstarview-vr/?city=Dubai&country=AE)
+- [Cairo, EG](https://tos-kamiya.github.io/zstarview-vr/?city=Cairo&country=EG)
+- [London, GB](https://tos-kamiya.github.io/zstarview-vr/?city=London&country=GB)
+- [Paris, FR](https://tos-kamiya.github.io/zstarview-vr/?city=Paris&country=FR)
+- [Berlin, DE](https://tos-kamiya.github.io/zstarview-vr/?city=Berlin&country=DE)
+- [Istanbul, TR](https://tos-kamiya.github.io/zstarview-vr/?city=Istanbul&country=TR)
+- [New York, US](https://tos-kamiya.github.io/zstarview-vr/?city=New%20York&country=US)
+- [Los Angeles, US](https://tos-kamiya.github.io/zstarview-vr/?city=Los%20Angeles&country=US)
+- [Mexico City, MX](https://tos-kamiya.github.io/zstarview-vr/?city=Mexico%20City&country=MX)
+- [Sao Paulo, BR](https://tos-kamiya.github.io/zstarview-vr/?city=Sao%20Paulo&country=BR)
+
 ## Screenshot
 
 Desktop mode (`?view=fisheye180`):
