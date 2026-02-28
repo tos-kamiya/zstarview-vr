@@ -699,7 +699,7 @@ function raDecToUnitVector(raHours, decDeg) {
   return new THREE.Vector3(
     c * Math.cos(ra),
     Math.sin(dec),
-    c * Math.sin(ra),
+    -c * Math.sin(ra),
   );
 }
 

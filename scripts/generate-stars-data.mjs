@@ -36,7 +36,8 @@ function toCartesian(raHours, decDeg) {
   const c = Math.cos(dec);
   const x = c * Math.cos(ra);
   const y = Math.sin(dec);
-  const z = c * Math.sin(ra);
+  // Keep RA increasing toward the east in our world coordinate system.
+  const z = -c * Math.sin(ra);
   return [x, y, z];
 }
 
