@@ -679,13 +679,46 @@ function addStarLayers(layers) {
   }
 }
 
+async function fetchArrayBufferWithProgress(url, onProgress) {
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status} for ${url}`);
+  }
+  const totalHeader = response.headers.get('content-length');
+  const totalBytes = totalHeader ? Number.parseInt(totalHeader, 10) : NaN;
+  const total = Number.isFinite(totalBytes) ? totalBytes : null;
+
+  if (!response.body) {
+    const ab = await response.arrayBuffer();
+    if (onProgress) onProgress(ab.byteLength, total ?? ab.byteLength);
+    return ab;
+  }
+
+  const reader = response.body.getReader();
+  const chunks = [];
+  let loaded = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    if (!value) continue;
+    chunks.push(value);
+    loaded += value.byteLength;
+    if (onProgress) onProgress(loaded, total);
+  }
+
+  const merged = new Uint8Array(loaded);
+  let off = 0;
+  for (const c of chunks) {
+    merged.set(c, off);
+    off += c.byteLength;
+  }
+  if (onProgress) onProgress(loaded, total ?? loaded);
+  return merged.buffer;
+}
+
 function loadBinaryLayers(url, label) {
-  return (async () => {
-    const response = await fetch(url);
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status} for ${url}`);
-    }
-    const buffer = await response.arrayBuffer();
+  return async (onProgress = null) => {
+    const buffer = await fetchArrayBufferWithProgress(url, onProgress);
     const view = new DataView(buffer);
     let off = 0;
 
@@ -739,33 +772,33 @@ function loadBinaryLayers(url, label) {
     }
 
     return { layers, usedRows };
-  })();
+  };
 }
 
-async function loadBaseBinaryLayers() {
+async function loadBaseBinaryLayers(onProgress = null) {
   if (!baseBinaryLoadPromise) {
-    baseBinaryLoadPromise = loadBinaryLayers(BASE_BIN_URL, 'base');
+    baseBinaryLoadPromise = loadBinaryLayers(BASE_BIN_URL, 'base')(onProgress);
   }
   return baseBinaryLoadPromise;
 }
 
-async function loadExtra7BinaryLayers() {
+async function loadExtra7BinaryLayers(onProgress = null) {
   if (!extra7BinaryLoadPromise) {
-    extra7BinaryLoadPromise = loadBinaryLayers(EXTRA7_BIN_URL, 'extra-7');
+    extra7BinaryLoadPromise = loadBinaryLayers(EXTRA7_BIN_URL, 'extra-7')(onProgress);
   }
   return extra7BinaryLoadPromise;
 }
 
-async function loadExtra8BinaryLayers() {
+async function loadExtra8BinaryLayers(onProgress = null) {
   if (!extra8BinaryLoadPromise) {
-    extra8BinaryLoadPromise = loadBinaryLayers(EXTRA8_BIN_URL, 'extra-8');
+    extra8BinaryLoadPromise = loadBinaryLayers(EXTRA8_BIN_URL, 'extra-8')(onProgress);
   }
   return extra8BinaryLoadPromise;
 }
 
-async function loadExtra9BinaryLayers() {
+async function loadExtra9BinaryLayers(onProgress = null) {
   if (!extra9BinaryLoadPromise) {
-    extra9BinaryLoadPromise = loadBinaryLayers(EXTRA9_BIN_URL, 'extra-9');
+    extra9BinaryLoadPromise = loadBinaryLayers(EXTRA9_BIN_URL, 'extra-9')(onProgress);
   }
   return extra9BinaryLoadPromise;
 }
@@ -780,9 +813,9 @@ async function ensureBaseStarsLoaded() {
   return true;
 }
 
-async function loadExtra10BinaryLayers() {
+async function loadExtra10BinaryLayers(onProgress = null) {
   if (!extra10BinaryLoadPromise) {
-    extra10BinaryLoadPromise = loadBinaryLayers(EXTRA10_BIN_URL, 'extra-10');
+    extra10BinaryLoadPromise = loadBinaryLayers(EXTRA10_BIN_URL, 'extra-10')(onProgress);
   }
   return extra10BinaryLoadPromise;
 }
@@ -1165,6 +1198,7 @@ function updateFamousStarHoverLabels(xrFrame) {
 let lastSolarUpdateMs = 0;
 let vrSplashSprite = null;
 let vrSplashUntilMs = 0;
+let vrSplashText = '';
 
 let session = null;
 
@@ -1177,6 +1211,7 @@ function clearVrSplash() {
   scene.remove(vrSplashSprite);
   vrSplashSprite = null;
   vrSplashUntilMs = 0;
+  vrSplashText = '';
 }
 
 function showVrSplash(text, durationMs) {
@@ -1184,6 +1219,19 @@ function showVrSplash(text, durationMs) {
   vrSplashSprite = createVrSplashSprite(text);
   scene.add(vrSplashSprite);
   vrSplashUntilMs = Number.isFinite(durationMs) ? performance.now() + durationMs : Number.POSITIVE_INFINITY;
+  vrSplashText = text;
+}
+
+function updateVrSplash(text) {
+  if (!renderer.xr.isPresenting) return;
+  if (vrSplashUntilMs !== Number.POSITIVE_INFINITY) return;
+  if (!vrSplashSprite || vrSplashText !== text) {
+    showVrSplash(text, Number.POSITIVE_INFINITY);
+  }
+}
+
+function formatBytesMiB(bytes) {
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MiB`;
 }
 
 async function ensureExtendedStarsLoaded() {
@@ -1192,29 +1240,56 @@ async function ensureExtendedStarsLoaded() {
 
   extendedStarsLoading = true;
   extendedStarsLoadPromise = (async () => {
+    const pendingLabels = [];
+    if (requestedMaxMag >= EXTENDED_MAX_MAG_7 && !extra7StarsLoaded) pendingLabels.push('extra-7');
+    if (requestedMaxMag >= EXTENDED_MAX_MAG_8 && !extra8StarsLoaded) pendingLabels.push('extra-8');
+    if (requestedMaxMag >= EXTENDED_MAX_MAG_9 && !extra9StarsLoaded) pendingLabels.push('extra-9');
+    if (requestedMaxMag >= EXTENDED_MAX_MAG_10 && !extra10StarsLoaded) pendingLabels.push('extra-10');
+    const totalSteps = Math.max(1, pendingLabels.length);
+    let stepIndex = 0;
+    let lastProgressUpdateMs = 0;
+
+    const makeProgressHandler = (label) => (loaded, total) => {
+      const now = performance.now();
+      const hasTotal = Number.isFinite(total) && total > 0;
+      const pct = hasTotal ? Math.min(100, Math.round((loaded / total) * 100)) : null;
+      if ((now - lastProgressUpdateMs) < 120 && pct !== 100) return;
+      lastProgressUpdateMs = now;
+      const prefix = `Loading star data (${stepIndex}/${totalSteps})`;
+      const text = hasTotal
+        ? `${prefix} ${label}: ${pct}%`
+        : `${prefix} ${label}: ${formatBytesMiB(loaded)}`;
+      updateVrSplash(text);
+      setStatus(text);
+    };
+
     if (requestedMaxMag >= EXTENDED_MAX_MAG_7 && !extra7StarsLoaded) {
-      const extra7 = await loadExtra7BinaryLayers();
+      stepIndex += 1;
+      const extra7 = await loadExtra7BinaryLayers(makeProgressHandler('extra-7'));
       addStarLayers(extra7.layers);
       displayedStarCount += extra7.usedRows;
       loadedMaxMag = Math.max(loadedMaxMag, EXTENDED_MAX_MAG_7);
       extra7StarsLoaded = true;
     }
     if (requestedMaxMag >= EXTENDED_MAX_MAG_8 && !extra8StarsLoaded) {
-      const extra8 = await loadExtra8BinaryLayers();
+      stepIndex += 1;
+      const extra8 = await loadExtra8BinaryLayers(makeProgressHandler('extra-8'));
       addStarLayers(extra8.layers);
       displayedStarCount += extra8.usedRows;
       loadedMaxMag = Math.max(loadedMaxMag, EXTENDED_MAX_MAG_8);
       extra8StarsLoaded = true;
     }
     if (requestedMaxMag >= EXTENDED_MAX_MAG_9 && !extra9StarsLoaded) {
-      const extra9 = await loadExtra9BinaryLayers();
+      stepIndex += 1;
+      const extra9 = await loadExtra9BinaryLayers(makeProgressHandler('extra-9'));
       addStarLayers(extra9.layers);
       displayedStarCount += extra9.usedRows;
       loadedMaxMag = Math.max(loadedMaxMag, EXTENDED_MAX_MAG_9);
       extra9StarsLoaded = true;
     }
     if (requestedMaxMag >= EXTENDED_MAX_MAG_10 && !extra10StarsLoaded) {
-      const extra10 = await loadExtra10BinaryLayers();
+      stepIndex += 1;
+      const extra10 = await loadExtra10BinaryLayers(makeProgressHandler('extra-10'));
       addStarLayers(extra10.layers);
       displayedStarCount += extra10.usedRows;
       loadedMaxMag = Math.max(loadedMaxMag, EXTENDED_MAX_MAG_10);
