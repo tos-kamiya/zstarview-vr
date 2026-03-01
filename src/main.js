@@ -1,6 +1,5 @@
 import * as THREE from 'three';
 import * as Astronomy from 'astronomy-engine';
-import { STAR_LAYERS, STAR_META } from './generated/stars-data.js';
 import { FAMOUS_STARS } from './generated/famous-stars-data.js';
 import packageJson from '../package.json';
 
@@ -30,6 +29,9 @@ const AU_KM = 149597870.7;
 const EARTH_OBLIQUITY_DEG = 23.439291;
 const CITY_INDEX_URL = `${import.meta.env.BASE_URL}data/cities-index-v2.json`;
 const CITY_INDEX_GZ_URL = `${CITY_INDEX_URL}.gz`;
+const BASE_BIN_URL = `${import.meta.env.BASE_URL}data/stars-data-base.bin`;
+const EXTRA7_BIN_URL = `${import.meta.env.BASE_URL}data/stars-data-extra-7.bin`;
+const EXTRA8_BIN_URL = `${import.meta.env.BASE_URL}data/stars-data-extra-8.bin`;
 const EXTRA9_BIN_URL = `${import.meta.env.BASE_URL}data/stars-data-extra-9.bin`;
 const EXTRA10_BIN_URL = `${import.meta.env.BASE_URL}data/stars-data-extra-10.bin`;
 const DEFAULT_MAX_MAG = 6.0;
@@ -68,12 +70,16 @@ const requestedMaxMag = parseMaxMagFromUrl(APP_QUERY_PARAMS);
 const shouldLoadExtraStars = requestedMaxMag > DEFAULT_MAX_MAG;
 const fisheyeEnabled = desktopViewMode === VIEW_MODE_FISHEYE_180;
 const STAR_SIZE_SCALE = 1.42;
-let displayedStarCount = STAR_META.usedRows;
-let loadedMaxMag = STAR_META.maxVmag;
+let displayedStarCount = 0;
+let loadedMaxMag = 0.0;
+let baseStarsLoaded = false;
 let extra7StarsLoaded = false;
 let extra8StarsLoaded = false;
 let extra9StarsLoaded = false;
 let extra10StarsLoaded = false;
+let baseBinaryLoadPromise = null;
+let extra7BinaryLoadPromise = null;
+let extra8BinaryLoadPromise = null;
 let extra9BinaryLoadPromise = null;
 let extra10BinaryLoadPromise = null;
 let extendedStarsLoading = false;
@@ -673,8 +679,6 @@ function addStarLayers(layers) {
   }
 }
 
-addStarLayers(STAR_LAYERS);
-
 function loadBinaryLayers(url, label) {
   return (async () => {
     const response = await fetch(url);
@@ -738,11 +742,42 @@ function loadBinaryLayers(url, label) {
   })();
 }
 
+async function loadBaseBinaryLayers() {
+  if (!baseBinaryLoadPromise) {
+    baseBinaryLoadPromise = loadBinaryLayers(BASE_BIN_URL, 'base');
+  }
+  return baseBinaryLoadPromise;
+}
+
+async function loadExtra7BinaryLayers() {
+  if (!extra7BinaryLoadPromise) {
+    extra7BinaryLoadPromise = loadBinaryLayers(EXTRA7_BIN_URL, 'extra-7');
+  }
+  return extra7BinaryLoadPromise;
+}
+
+async function loadExtra8BinaryLayers() {
+  if (!extra8BinaryLoadPromise) {
+    extra8BinaryLoadPromise = loadBinaryLayers(EXTRA8_BIN_URL, 'extra-8');
+  }
+  return extra8BinaryLoadPromise;
+}
+
 async function loadExtra9BinaryLayers() {
   if (!extra9BinaryLoadPromise) {
     extra9BinaryLoadPromise = loadBinaryLayers(EXTRA9_BIN_URL, 'extra-9');
   }
   return extra9BinaryLoadPromise;
+}
+
+async function ensureBaseStarsLoaded() {
+  if (baseStarsLoaded) return true;
+  const base = await loadBaseBinaryLayers();
+  addStarLayers(base.layers);
+  displayedStarCount += base.usedRows;
+  loadedMaxMag = Math.max(loadedMaxMag, DEFAULT_MAX_MAG);
+  baseStarsLoaded = true;
+  return true;
 }
 
 async function loadExtra10BinaryLayers() {
@@ -1158,17 +1193,17 @@ async function ensureExtendedStarsLoaded() {
   extendedStarsLoading = true;
   extendedStarsLoadPromise = (async () => {
     if (requestedMaxMag >= EXTENDED_MAX_MAG_7 && !extra7StarsLoaded) {
-      const extra7 = await import('./generated/stars-data-extra-7.js');
-      addStarLayers(extra7.STAR_EXTRA_7_LAYERS);
-      displayedStarCount += extra7.STAR_EXTRA_7_META.usedRows;
-      loadedMaxMag = Math.max(loadedMaxMag, extra7.STAR_EXTRA_7_META.maxVmag);
+      const extra7 = await loadExtra7BinaryLayers();
+      addStarLayers(extra7.layers);
+      displayedStarCount += extra7.usedRows;
+      loadedMaxMag = Math.max(loadedMaxMag, EXTENDED_MAX_MAG_7);
       extra7StarsLoaded = true;
     }
     if (requestedMaxMag >= EXTENDED_MAX_MAG_8 && !extra8StarsLoaded) {
-      const extra8 = await import('./generated/stars-data-extra-8.js');
-      addStarLayers(extra8.STAR_EXTRA_8_LAYERS);
-      displayedStarCount += extra8.STAR_EXTRA_8_META.usedRows;
-      loadedMaxMag = Math.max(loadedMaxMag, extra8.STAR_EXTRA_8_META.maxVmag);
+      const extra8 = await loadExtra8BinaryLayers();
+      addStarLayers(extra8.layers);
+      displayedStarCount += extra8.usedRows;
+      loadedMaxMag = Math.max(loadedMaxMag, EXTENDED_MAX_MAG_8);
       extra8StarsLoaded = true;
     }
     if (requestedMaxMag >= EXTENDED_MAX_MAG_9 && !extra9StarsLoaded) {
@@ -1423,5 +1458,16 @@ async function initializeLocation() {
   }
 }
 
-initializeLocation();
-prepareVrButton();
+async function bootstrap() {
+  setStatus('Loading base star data...');
+  try {
+    await ensureBaseStarsLoaded();
+  } catch (error) {
+    setStatus(`Failed to load base star data (${error.message})`);
+    return;
+  }
+  await initializeLocation();
+  await prepareVrButton();
+}
+
+void bootstrap();

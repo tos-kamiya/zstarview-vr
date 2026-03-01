@@ -10,7 +10,7 @@
 - `src/`: app source code
 - `data/stars.csv`: input star catalog
 - `data/cities1000.txt`: input city catalog (GeoNames-derived)
-- `scripts/generate-stars-data.mjs`: generator for `src/generated/stars-data.js` and star binary chunks
+- `scripts/generate-stars-data.mjs`: generator for star binary chunks
 - `scripts/generate-cities-data.mjs`: generator for `public/data/cities-index-v2.json`
 - `scripts/generate-cities-gzip.mjs`: generator for `public/data/cities-index-v2.json.gz`
 - `src/generated/`: generated files (can be deleted safely)
@@ -36,7 +36,9 @@ npm run build
 
 `npm run build` automatically runs `prebuild`, which regenerates:
 
-- `src/generated/stars-data.js`
+- `public/data/stars-data-base.bin`
+- `public/data/stars-data-extra-7.bin`
+- `public/data/stars-data-extra-8.bin`
 - `public/data/stars-data-extra-9.bin`
 - `public/data/stars-data-extra-10.bin`
 - `public/data/cities-index-v2.json`
@@ -55,8 +57,7 @@ Then Vite builds the app into `dist/`.
 npm run dev
 ```
 
-`npm run dev` also regenerates `src/generated/stars-data.js` via `predev`.
-`predev` regenerates both star and city generated data files.
+`npm run dev` also regenerates star/city generated data files via `predev`.
 
 ## URL Parameters
 
@@ -93,18 +94,12 @@ Expected: HTTP 200 and a non-zero `Content-Length`.
 
 ## Generated File Policy
 
-This repository intentionally keeps `src/generated/stars-data.js` under version control.
-
-Why:
-
-- Easier debugging when generated output differs between environments
-- Clear git diffs for generator/script changes
-- Faster first-time inspection after clone
-
 Rule:
 
 - If you change `data/stars.csv` or `scripts/generate-stars-data.mjs`,
-  regenerate and commit `src/generated/stars-data.js` and
+  regenerate and commit `public/data/stars-data-base.bin` and
+  `public/data/stars-data-extra-7.bin` and
+  `public/data/stars-data-extra-8.bin` and
   `public/data/stars-data-extra-9.bin` and
   `public/data/stars-data-extra-10.bin` in the same change.
 - If you change `data/cities1000.txt` or `scripts/generate-cities-data.mjs`,
