@@ -18,6 +18,8 @@ GitHub Pages（Quest 3 など対応デバイス・ブラウザ向け）:
   - [`maxMag=8`で開く](https://tos-kamiya.github.io/zstarview-vr/?maxMag=8)
 - 拡張恒星表示（`maxMag=9`）:
   - [`maxMag=9`で開く](https://tos-kamiya.github.io/zstarview-vr/?maxMag=9)
+- 拡張恒星表示（`maxMag=10`）:
+  - [`maxMag=10`で開く](https://tos-kamiya.github.io/zstarview-vr/?maxMag=10)
 
 主要都市（約20件）:
 
@@ -89,8 +91,9 @@ GitHub Pages（Quest 3 など対応デバイス・ブラウザ向け）:
 - 都市名データ（`data/cities1000.txt`）: GeoNames dump  
   Source: https://download.geonames.org/export/dump/  
   License: CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/)
-- 恒星カタログ（生成元データ）: Hipparcos and Tycho Catalogues (ESA 1997) via CDS Strasbourg  
-  Source: https://cdsarc.cds.unistra.fr/ftp/I/239/  
+- 恒星カタログ（生成元データ）: Hipparcos and Tycho Catalogues (ESA 1997) および Tycho-2 Catalogue (Hog et al. 2000), via CDS Strasbourg  
+  Source（Hipparcos/Tycho）: https://cdsarc.cds.unistra.fr/ftp/I/239/  
+  Source（Tycho-2）: https://cdsarc.cds.unistra.fr/ftp/I/259/  
   zstarview 側のライセンス注記: ODbL または CC BY-NC 3.0 IGO（非商用）
 
 ## 開発者向け情報

@@ -18,6 +18,8 @@ You can experience the app by opening the URL above.
   - [Open with `maxMag=8`](https://tos-kamiya.github.io/zstarview-vr/?maxMag=8)
 - Extended stars (`maxMag=9`):
   - [Open with `maxMag=9`](https://tos-kamiya.github.io/zstarview-vr/?maxMag=9)
+- Extended stars (`maxMag=10`):
+  - [Open with `maxMag=10`](https://tos-kamiya.github.io/zstarview-vr/?maxMag=10)
 
 Major cities (about 20):
 
@@ -88,8 +90,9 @@ Data source licenses (inherited from zstarview dataset sources):
 - City names (`data/cities1000.txt`): GeoNames dump  
   Source: https://download.geonames.org/export/dump/  
   License: CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/)
-- Star catalog (source for generated star data): Hipparcos and Tycho Catalogues (ESA 1997) via CDS Strasbourg  
-  Source: https://cdsarc.cds.unistra.fr/ftp/I/239/  
+- Star catalog (source for generated star data): Hipparcos and Tycho Catalogues (ESA 1997), plus Tycho-2 Catalogue (Hog et al. 2000), via CDS Strasbourg  
+  Source (Hipparcos/Tycho): https://cdsarc.cds.unistra.fr/ftp/I/239/  
+  Source (Tycho-2): https://cdsarc.cds.unistra.fr/ftp/I/259/  
   License note in zstarview: ODbL or CC BY-NC 3.0 IGO (non-commercial)
 
 ## Developer Notes
