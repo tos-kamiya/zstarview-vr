@@ -936,12 +936,6 @@ function raDecToUnitVector(raHours, decDeg) {
   );
 }
 
-const BIG_DIPPER_STAR_NAMES = new Set([
-  'Dubhe', 'Merak', 'Phecda', 'Megrez', 'Alioth', 'Mizar', 'Alkaid',
-]);
-const BIG_DIPPER_MARKER_COLOR = 'rgba(255, 232, 140, 0.98)';
-const BIG_DIPPER_MARKER_SCALE = 2.8;
-
 const famousStarObjects = FAMOUS_STARS.map((def) => {
   const equatorialDirection = raDecToUnitVector(def.raHours, def.decDeg).normalize();
   const worldDirection = equatorialDirection.clone();
@@ -951,15 +945,7 @@ const famousStarObjects = FAMOUS_STARS.map((def) => {
   label.visible = false;
   solarSystemGroup.add(label);
 
-  let bigDipperMarker = null;
-  if (BIG_DIPPER_STAR_NAMES.has(def.name)) {
-    bigDipperMarker = createCircleOutlineSprite(BIG_DIPPER_MARKER_COLOR);
-    bigDipperMarker.scale.set(BIG_DIPPER_MARKER_SCALE, BIG_DIPPER_MARKER_SCALE, 1.0);
-    bigDipperMarker.position.copy(worldDirection).multiplyScalar(SYMBOL_RADIUS);
-    solarSystemGroup.add(bigDipperMarker);
-  }
-
-  return { ...def, equatorialDirection, worldDirection, label, bigDipperMarker };
+  return { ...def, equatorialDirection, worldDirection, label };
 });
 
 const zenithMarker = createCrossMarkerSprite('rgba(210, 244, 255, 0.96)');
@@ -1070,9 +1056,6 @@ function updateStarfieldOrientation(when) {
   for (const star of famousStarObjects) {
     star.worldDirection.copy(star.equatorialDirection).applyQuaternion(equatorialRotation).normalize();
     star.label.position.copy(star.worldDirection).multiplyScalar(SYMBOL_RADIUS);
-    if (star.bigDipperMarker) {
-      star.bigDipperMarker.position.copy(star.worldDirection).multiplyScalar(SYMBOL_RADIUS);
-    }
   }
 }
 
