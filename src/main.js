@@ -34,6 +34,7 @@ const DEFAULT_MAX_MAG = 6.0;
 const EXTENDED_MAX_MAG_7 = 7.0;
 const EXTENDED_MAX_MAG_8 = 8.0;
 const EXTENDED_MAX_MAG_9 = 9.0;
+const EXTENDED_MAX_MAG_10 = 10.0;
 const APP_QUERY_PARAMS = new URLSearchParams(window.location.search);
 
 const canvas = document.getElementById('scene');
@@ -53,6 +54,7 @@ function parseMaxMagFromUrl(searchParams) {
   if (value == null || value.trim() === '') return DEFAULT_MAX_MAG;
   const parsed = Number.parseFloat(value);
   if (!Number.isFinite(parsed)) return DEFAULT_MAX_MAG;
+  if (parsed >= EXTENDED_MAX_MAG_10) return EXTENDED_MAX_MAG_10;
   if (parsed >= EXTENDED_MAX_MAG_9) return EXTENDED_MAX_MAG_9;
   if (parsed >= EXTENDED_MAX_MAG_8) return EXTENDED_MAX_MAG_8;
   if (parsed >= EXTENDED_MAX_MAG_7) return EXTENDED_MAX_MAG_7;
@@ -69,6 +71,7 @@ let loadedMaxMag = STAR_META.maxVmag;
 let extra7StarsLoaded = false;
 let extra8StarsLoaded = false;
 let extra9StarsLoaded = false;
+let extra10StarsLoaded = false;
 let extendedStarsLoading = false;
 let extendedStarsLoadPromise = null;
 let pendingExtendedStarsSplash = false;
@@ -1093,6 +1096,13 @@ async function ensureExtendedStarsLoaded() {
       displayedStarCount += extra9.STAR_EXTRA_9_META.usedRows;
       loadedMaxMag = Math.max(loadedMaxMag, extra9.STAR_EXTRA_9_META.maxVmag);
       extra9StarsLoaded = true;
+    }
+    if (requestedMaxMag >= EXTENDED_MAX_MAG_10 && !extra10StarsLoaded) {
+      const extra10 = await import('./generated/stars-data-extra-10.js');
+      addStarLayers(extra10.STAR_EXTRA_10_LAYERS);
+      displayedStarCount += extra10.STAR_EXTRA_10_META.usedRows;
+      loadedMaxMag = Math.max(loadedMaxMag, extra10.STAR_EXTRA_10_META.maxVmag);
+      extra10StarsLoaded = true;
     }
     return true;
   })()
