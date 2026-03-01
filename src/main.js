@@ -71,7 +71,8 @@ const shouldLoadExtraStars = requestedMaxMag > DEFAULT_MAX_MAG;
 const fisheyeEnabled = desktopViewMode === VIEW_MODE_FISHEYE_180;
 const STAR_SIZE_BASELINE = 1.42;
 const STAR_SIZE_SCALE = 2.13;
-const STAR_OPACITY_COMPENSATION = Math.min(1.0, Math.pow(STAR_SIZE_BASELINE / STAR_SIZE_SCALE, 2));
+const STAR_OPACITY_COMPENSATION = Math.min(1.0, STAR_SIZE_BASELINE / STAR_SIZE_SCALE);
+const STAR_LAYER_OPACITY_MIN = 0.006;
 const PLANET_MARKER_SCALE = 1.5;
 let displayedStarCount = 0;
 let loadedMaxMag = 0.0;
@@ -236,7 +237,7 @@ function createStarfieldFromLayer(layer, radius) {
     sizeAttenuation: false,
     vertexColors: true,
     transparent: true,
-    opacity: layer.opacity * STAR_OPACITY_COMPENSATION,
+    opacity: Math.max(STAR_LAYER_OPACITY_MIN, layer.opacity * STAR_OPACITY_COMPENSATION),
     depthWrite: false,
   });
 
