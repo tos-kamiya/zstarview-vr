@@ -10,7 +10,7 @@
 - `src/`: app source code
 - `data/stars.csv`: input star catalog
 - `data/cities1000.txt`: input city catalog (GeoNames-derived)
-- `scripts/generate-stars-data.mjs`: generator for `src/generated/stars-data.js`
+- `scripts/generate-stars-data.mjs`: generator for `src/generated/stars-data.js` and star binary chunks
 - `scripts/generate-cities-data.mjs`: generator for `public/data/cities-index-v2.json`
 - `scripts/generate-cities-gzip.mjs`: generator for `public/data/cities-index-v2.json.gz`
 - `src/generated/`: generated files (can be deleted safely)
@@ -37,6 +37,7 @@ npm run build
 `npm run build` automatically runs `prebuild`, which regenerates:
 
 - `src/generated/stars-data.js`
+- `public/data/stars-data-extra-9.bin`
 - `public/data/stars-data-extra-10.bin`
 - `public/data/cities-index-v2.json`
 - `public/data/cities-index-v2.json.gz`
@@ -104,6 +105,7 @@ Rule:
 
 - If you change `data/stars.csv` or `scripts/generate-stars-data.mjs`,
   regenerate and commit `src/generated/stars-data.js` and
+  `public/data/stars-data-extra-9.bin` and
   `public/data/stars-data-extra-10.bin` in the same change.
 - If you change `data/cities1000.txt` or `scripts/generate-cities-data.mjs`,
   regenerate and commit `public/data/cities-index-v2.json` in the same change.
