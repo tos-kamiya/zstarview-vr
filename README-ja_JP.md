@@ -20,6 +20,7 @@ GitHub Pages（Quest 3 など対応デバイス・ブラウザ向け）:
   - [`maxMag=9`で開く](https://tos-kamiya.github.io/zstarview-vr/?maxMag=9)
 - 拡張恒星表示（`maxMag=10`）:
   - [`maxMag=10`で開く](https://tos-kamiya.github.io/zstarview-vr/?maxMag=10)
+  - 注意: データサイズが極端に大きいため、実用というよりベンチマーク用途向けです。
 
 主要都市（約20件）:
 

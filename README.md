@@ -20,6 +20,7 @@ You can experience the app by opening the URL above.
   - [Open with `maxMag=9`](https://tos-kamiya.github.io/zstarview-vr/?maxMag=9)
 - Extended stars (`maxMag=10`):
   - [Open with `maxMag=10`](https://tos-kamiya.github.io/zstarview-vr/?maxMag=10)
+  - Note: due to extremely large data size, this mode is provided mainly for benchmarking rather than practical use.
 
 Major cities (about 20):
 
