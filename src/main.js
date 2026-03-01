@@ -1234,6 +1234,18 @@ function formatBytesMiB(bytes) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MiB`;
 }
 
+function hasAllRequestedStarDataLoaded() {
+  return !shouldLoadExtraStars || loadedMaxMag >= requestedMaxMag;
+}
+
+function buildEnterVrSplashText() {
+  const base = locationSummaryText || activeLocation.name;
+  if (hasAllRequestedStarDataLoaded()) {
+    return `${base} / star data ready (maxMag ${loadedMaxMag.toFixed(1)})`;
+  }
+  return base;
+}
+
 async function ensureExtendedStarsLoaded() {
   if (!shouldLoadExtraStars || loadedMaxMag >= requestedMaxMag) return true;
   if (extendedStarsLoadPromise) return extendedStarsLoadPromise;
@@ -1363,7 +1375,7 @@ async function prepareVrButton() {
       session = nextSession;
       enterVrButton.textContent = 'Exit VR';
       setStatus('Immersive VR session started');
-      showVrSplash(locationSummaryText || activeLocation.name, 3000);
+      showVrSplash(buildEnterVrSplashText(), 3000);
       pendingExtendedStarsSplash = shouldLoadExtraStars && loadedMaxMag < requestedMaxMag;
 
       nextSession.addEventListener('end', () => {
