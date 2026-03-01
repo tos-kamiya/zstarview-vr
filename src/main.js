@@ -69,7 +69,8 @@ const desktopViewMode = parseViewModeFromUrl(APP_QUERY_PARAMS);
 const requestedMaxMag = parseMaxMagFromUrl(APP_QUERY_PARAMS);
 const shouldLoadExtraStars = requestedMaxMag > DEFAULT_MAX_MAG;
 const fisheyeEnabled = desktopViewMode === VIEW_MODE_FISHEYE_180;
-const STAR_SIZE_SCALE = 1.42;
+const STAR_SIZE_SCALE = 2.13;
+const PLANET_MARKER_SCALE = 1.5;
 let displayedStarCount = 0;
 let loadedMaxMag = 0.0;
 let baseStarsLoaded = false;
@@ -1127,10 +1128,10 @@ function updateSolarSystemMarkers() {
       // Clip at -1.5 magnitude so bright planets (like Venus) don't get too large.
       // They will instead look brighter via bloom effect.
       const effectiveMag = Math.max(-1.5, pos.mag);
-      const pScale = Math.max(0.6, 3.2 - 0.4 * effectiveMag) * (SYMBOL_RADIUS / 450);
+      const pScale = Math.max(0.6, 3.2 - 0.4 * effectiveMag) * (SYMBOL_RADIUS / 450) * PLANET_MARKER_SCALE;
       planet.marker.scale.set(pScale, pScale, 1.0);
     } else {
-      planet.marker.scale.set(1.5, 1.5, 1.0);
+      planet.marker.scale.set(1.5 * PLANET_MARKER_SCALE, 1.5 * PLANET_MARKER_SCALE, 1.0);
     }
 
     planet.label.visible = true;
