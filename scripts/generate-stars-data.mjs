@@ -19,6 +19,10 @@ const FAINT_LAYER_SIZE = 1.0;
 const BRIGHT_LAYER_OPACITY = 1.0;
 const FAINT_LAYER_OPACITY = 0.03;
 const OPACITY_CURVE_EXP = 2.2;
+const FAINT_SIZE_BOOST_START_T = 0.65;
+const FAINT_SIZE_BOOST_EXP = 1.2;
+const MAX_FAINT_SIZE_BOOST = 1.8;
+const OPACITY_FLOOR = 0.006;
 
 function bvToRgb(bvRaw) {
   const bv = Number.isFinite(bvRaw) ? bvRaw : NaN;
@@ -62,10 +66,18 @@ function createEmptyLayers() {
   for (let i = 0; i < LAYER_COUNT; i += 1) {
     const t = i / Math.max(1, LAYER_COUNT - 1);
     const tOpacity = Math.pow(t, OPACITY_CURVE_EXP);
+    const tBoostRaw = (t - FAINT_SIZE_BOOST_START_T) / Math.max(1e-6, 1 - FAINT_SIZE_BOOST_START_T);
+    const tBoost = Math.max(0, Math.min(1, tBoostRaw));
+    const sizeBoost = lerp(1, MAX_FAINT_SIZE_BOOST, Math.pow(tBoost, FAINT_SIZE_BOOST_EXP));
+    const baseSize = lerp(BRIGHT_LAYER_SIZE, FAINT_LAYER_SIZE, t);
+    const size = baseSize * sizeBoost;
+    const baseOpacity = lerp(BRIGHT_LAYER_OPACITY, FAINT_LAYER_OPACITY, tOpacity);
+    // Keep faint stars visible by enlarging sprites, then reduce opacity to avoid over-brightening.
+    const opacityCompensated = baseOpacity / (sizeBoost * sizeBoost);
     layers.push({
       name: `l${String(i).padStart(2, '0')}`,
-      size: lerp(BRIGHT_LAYER_SIZE, FAINT_LAYER_SIZE, t),
-      opacity: lerp(BRIGHT_LAYER_OPACITY, FAINT_LAYER_OPACITY, tOpacity),
+      size,
+      opacity: Math.max(OPACITY_FLOOR, opacityCompensated),
       positions: [],
       colors: [],
     });
