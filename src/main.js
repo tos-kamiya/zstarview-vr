@@ -30,6 +30,7 @@ const AU_KM = 149597870.7;
 const EARTH_OBLIQUITY_DEG = 23.439291;
 const CITY_INDEX_URL = `${import.meta.env.BASE_URL}data/cities-index-v2.json`;
 const CITY_INDEX_GZ_URL = `${CITY_INDEX_URL}.gz`;
+const EXTRA10_BIN_URL = `${import.meta.env.BASE_URL}data/stars-data-extra-10.bin`;
 const DEFAULT_MAX_MAG = 6.0;
 const EXTENDED_MAX_MAG_7 = 7.0;
 const EXTENDED_MAX_MAG_8 = 8.0;
@@ -72,6 +73,7 @@ let extra7StarsLoaded = false;
 let extra8StarsLoaded = false;
 let extra9StarsLoaded = false;
 let extra10StarsLoaded = false;
+let extra10BinaryLoadPromise = null;
 let extendedStarsLoading = false;
 let extendedStarsLoadPromise = null;
 let pendingExtendedStarsSplash = false;
@@ -670,6 +672,73 @@ function addStarLayers(layers) {
 }
 
 addStarLayers(STAR_LAYERS);
+
+async function loadExtra10BinaryLayers() {
+  if (extra10BinaryLoadPromise) return extra10BinaryLoadPromise;
+
+  extra10BinaryLoadPromise = (async () => {
+    const response = await fetch(EXTRA10_BIN_URL);
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status} for ${EXTRA10_BIN_URL}`);
+    }
+    const buffer = await response.arrayBuffer();
+    const view = new DataView(buffer);
+    let off = 0;
+
+    const magic = view.getUint32(off, true);
+    off += 4;
+    if (magic !== 0x3156535a) {
+      throw new Error('Invalid extra-10 binary magic');
+    }
+    const layerCount = view.getUint32(off, true);
+    off += 4;
+
+    const headerBytes = 8 + layerCount * 12;
+    if (buffer.byteLength < headerBytes) {
+      throw new Error('Truncated extra-10 binary header');
+    }
+
+    const layerMeta = [];
+    let usedRows = 0;
+    for (let i = 0; i < layerCount; i += 1) {
+      const size = view.getFloat32(off, true);
+      off += 4;
+      const opacity = view.getFloat32(off, true);
+      off += 4;
+      const starCount = view.getUint32(off, true);
+      off += 4;
+      layerMeta.push({ size, opacity, starCount });
+      usedRows += starCount;
+    }
+
+    let byteOff = headerBytes;
+    const layers = [];
+    for (let i = 0; i < layerCount; i += 1) {
+      const m = layerMeta[i];
+      const vecLen = m.starCount * 3;
+      const posBytes = vecLen * 4;
+      const colBytes = vecLen * 4;
+      if (byteOff + posBytes + colBytes > buffer.byteLength) {
+        throw new Error('Truncated extra-10 binary payload');
+      }
+      const positions = new Float32Array(buffer, byteOff, vecLen);
+      byteOff += posBytes;
+      const colors = new Float32Array(buffer, byteOff, vecLen);
+      byteOff += colBytes;
+      layers.push({
+        name: `l${String(i).padStart(2, '0')}`,
+        size: m.size,
+        opacity: m.opacity,
+        positions,
+        colors,
+      });
+    }
+
+    return { layers, usedRows };
+  })();
+
+  return extra10BinaryLoadPromise;
+}
 const equatorialRotation = new THREE.Quaternion();
 const equatorialBasisMatrix = new THREE.Matrix4();
 const worldToEquatorialMatrix3 = new THREE.Matrix3();
@@ -1098,10 +1167,10 @@ async function ensureExtendedStarsLoaded() {
       extra9StarsLoaded = true;
     }
     if (requestedMaxMag >= EXTENDED_MAX_MAG_10 && !extra10StarsLoaded) {
-      const extra10 = await import('./generated/stars-data-extra-10.js');
-      addStarLayers(extra10.STAR_EXTRA_10_LAYERS);
-      displayedStarCount += extra10.STAR_EXTRA_10_META.usedRows;
-      loadedMaxMag = Math.max(loadedMaxMag, extra10.STAR_EXTRA_10_META.maxVmag);
+      const extra10 = await loadExtra10BinaryLayers();
+      addStarLayers(extra10.layers);
+      displayedStarCount += extra10.usedRows;
+      loadedMaxMag = Math.max(loadedMaxMag, EXTENDED_MAX_MAG_10);
       extra10StarsLoaded = true;
     }
     return true;

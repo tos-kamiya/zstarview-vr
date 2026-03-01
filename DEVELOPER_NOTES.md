@@ -37,6 +37,7 @@ npm run build
 `npm run build` automatically runs `prebuild`, which regenerates:
 
 - `src/generated/stars-data.js`
+- `public/data/stars-data-extra-10.bin`
 - `public/data/cities-index-v2.json`
 - `public/data/cities-index-v2.json.gz`
 
@@ -102,7 +103,8 @@ Why:
 Rule:
 
 - If you change `data/stars.csv` or `scripts/generate-stars-data.mjs`,
-  regenerate and commit `src/generated/stars-data.js` in the same change.
+  regenerate and commit `src/generated/stars-data.js` and
+  `public/data/stars-data-extra-10.bin` in the same change.
 - If you change `data/cities1000.txt` or `scripts/generate-cities-data.mjs`,
   regenerate and commit `public/data/cities-index-v2.json` in the same change.
 - If you change city generator scripts, also regenerate and commit `public/data/cities-index-v2.json.gz`.
