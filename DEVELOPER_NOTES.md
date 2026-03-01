@@ -117,3 +117,11 @@ Rule:
   - Added scaling clip at -1.5 magnitude to prevent oversized disks for bright planets like Venus.
 - **Astronomy Engine Integration**:
   - Now dynamically calculates planet visual magnitude using `Astronomy.Illumination`.
+
+- **Jump to Named Star (VR)**:
+  - Added a VR menu panel accessible via the controller Menu button (or 'M' key on desktop).
+  - Menu displays a list of bright named stars, vertically scrollable via the thumbstick (or arrow keys).
+  - When navigating the menu, a dynamic great-circle arc is rendered from the center of the user's field of view to the highlighted star.
+  - The target star is marked with a glowing circle.
+  - The arc and marker persist dynamically as the user looks around, until the menu is closed.
+  - The menu panel is positioned and rotated naturally relative to the active controller (left or right).

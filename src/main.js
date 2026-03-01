@@ -40,6 +40,49 @@ const EXTENDED_MAX_MAG_8 = 8.0;
 const EXTENDED_MAX_MAG_9 = 9.0;
 const EXTENDED_MAX_MAG_10 = 10.0;
 const APP_QUERY_PARAMS = new URLSearchParams(window.location.search);
+const MENU_PANEL_WIDTH = 0.24;
+const MENU_PANEL_HEIGHT = 0.32;
+const MENU_PANEL_OFFSET = new THREE.Vector3(0.06, -0.06, 0.0);
+const MENU_PANEL_COLOR = new THREE.Color('#0c1b31');
+const MENU_PANEL_BORDER = 'rgba(157, 216, 255, 0.72)';
+const MENU_PANEL_TEXT_COLOR = 'rgba(239, 249, 255, 0.96)';
+const MENU_PANEL_TEXT_MUTED = 'rgba(173, 196, 229, 0.82)';
+const MENU_PANEL_LINE_HEIGHT = 28;
+const MENU_PANEL_PADDING = 20;
+const MENU_PANEL_CANVAS_WIDTH = 384;
+const MENU_PANEL_CANVAS_HEIGHT = 640;
+const MENU_PANEL_MENU_START_Y = 240;
+const MENU_ROW_HEIGHT = 36;
+const MENU_VISIBLE_STAR_LIMIT = 10;
+const MENU_STAR_ENTRIES = FAMOUS_STARS.slice(0, MENU_VISIBLE_STAR_LIMIT);
+const MENU_ITEM_FONT = '24px "Noto Sans JP", "Noto Sans", sans-serif';
+const MENU_HIGHLIGHT_DURATION_MS = 3000;
+const MENU_ARC_DURATION_MS = 3000;
+const MENU_ARC_FADE_IN_MS = 200;
+const MENU_ARC_FADE_OUT_MS = 200;
+const MENU_ARC_MIN_SEGMENTS = 64;
+const MENU_ARC_MAX_SEGMENTS = 96;
+const MENU_ARC_WIDTH_DEG = 0.2;
+const MENU_ARC_SKIP_THRESHOLD_DEG = 1.0;
+
+const menuPanelCanvas = document.createElement('canvas');
+menuPanelCanvas.width = MENU_PANEL_CANVAS_WIDTH;
+menuPanelCanvas.height = MENU_PANEL_CANVAS_HEIGHT;
+const menuPanelCtx = menuPanelCanvas.getContext('2d');
+
+const menuTarget = new THREE.Vector3();
+let menuPanelGroup = null;
+let menuPanelMaterial = null;
+let menuPanelTexture = null;
+let menuPanelMesh = null;
+let menuPanelVisible = false;
+let menuButtonStates = new WeakMap();
+let menuPanelEntries = [];
+let menuSelectedIndex = 0;
+let thumbstickDebounceTimer = 0;
+let currentArc = null;
+let currentTargetCircle = null;
+let selectedStarObject = null;
 
 const canvas = document.getElementById('scene');
 const hudEl = document.getElementById('hud');
@@ -200,16 +243,39 @@ function createControllerPointerLine() {
   return line;
 }
 
+const vrControllers = [];
+let leftController = null;
+let rightController = null;
+let activeMenuController = null;
+
 for (let i = 0; i < 2; i += 1) {
   const controller = renderer.xr.getController(i);
   const pointerLine = createControllerPointerLine();
   controller.add(pointerLine);
   controller.addEventListener('connected', (event) => {
     pointerLine.visible = event.data?.targetRayMode === 'tracked-pointer';
+    if (event.data?.handedness === 'left') {
+      leftController = controller;
+    } else if (event.data?.handedness === 'right') {
+      rightController = controller;
+    }
   });
-  controller.addEventListener('disconnected', () => {
+  controller.addEventListener('disconnected', (event) => {
     pointerLine.visible = false;
+    if (leftController === controller) {
+      leftController = null;
+    }
+    if (rightController === controller) {
+      rightController = null;
+    }
+    if (activeMenuController === controller) {
+      activeMenuController = null;
+    }
   });
+  controller.addEventListener('selectstart', () => {
+    // Menu selection is handled via gamepad inputs now
+  });
+  vrControllers.push(controller);
   scene.add(controller);
 }
 
@@ -403,6 +469,255 @@ function createVrSplashSprite(text) {
   sprite.scale.set(2.15, 0.58, 1.0);
   return sprite;
 }
+
+function updateMenuPanelTexture() {
+  const cnv = menuPanelCanvas;
+  const ctx = menuPanelCtx;
+  const bgColor = MENU_PANEL_COLOR.getStyle ? MENU_PANEL_COLOR.getStyle() : '#030711';
+  ctx.fillStyle = bgColor;
+  ctx.fillRect(0, 0, cnv.width, cnv.height);
+  ctx.strokeStyle = MENU_PANEL_BORDER;
+  ctx.lineWidth = 6;
+  ctx.strokeRect(4, 4, cnv.width - 8, cnv.height - 8);
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
+  ctx.font = 'bold 32px "Noto Sans JP", "Noto Sans", sans-serif';
+  ctx.fillStyle = MENU_PANEL_TEXT_COLOR;
+  ctx.fillText('Jump to Star', MENU_PANEL_PADDING, MENU_PANEL_PADDING);
+  ctx.font = '20px "Noto Sans JP", "Noto Sans", sans-serif';
+  const lines = [
+    'Menu: Button',
+    'Move: Stick Up/Down',
+  ];
+  let y = MENU_PANEL_PADDING + MENU_PANEL_LINE_HEIGHT * 2 + 12;
+  for (const line of lines) {
+    ctx.fillText(line, MENU_PANEL_PADDING, y);
+    y += MENU_PANEL_LINE_HEIGHT;
+  }
+
+  if (menuPanelEntries.length === 0) {
+    menuPanelEntries = [
+      { name: 'Cancel', isCancel: true },
+      ...MENU_STAR_ENTRIES.map(star => ({ name: star.name, star: star, isCancel: false }))
+    ];
+  }
+
+  ctx.fillStyle = 'rgba(255,255,255,0.06)';
+  ctx.globalCompositeOperation = 'destination-over';
+  ctx.fillRect(MENU_PANEL_PADDING / 2, MENU_PANEL_MENU_START_Y - MENU_PANEL_LINE_HEIGHT / 2, cnv.width - MENU_PANEL_PADDING, MENU_ROW_HEIGHT * menuPanelEntries.length + MENU_PANEL_PADDING / 2);
+  ctx.globalCompositeOperation = 'source-over';
+  
+  ctx.font = MENU_ITEM_FONT;
+  let entryY = MENU_PANEL_MENU_START_Y;
+  
+  menuPanelEntries.forEach((entry, index) => {
+    if (index === menuSelectedIndex) {
+      ctx.fillStyle = 'rgba(157, 216, 255, 0.3)';
+      ctx.fillRect(MENU_PANEL_PADDING / 2, entryY - 4, cnv.width - MENU_PANEL_PADDING, MENU_ROW_HEIGHT);
+    }
+    ctx.fillStyle = index === menuSelectedIndex ? '#ffffff' : MENU_PANEL_TEXT_COLOR;
+    const text = entry.isCancel ? 'Cancel' : `${index}. ${entry.name}`;
+    ctx.fillText(text, MENU_PANEL_PADDING, entryY);
+    entryY += MENU_ROW_HEIGHT;
+  });
+
+  if (menuPanelTexture) {
+    menuPanelTexture.needsUpdate = true;
+  }
+  updatePreviewDisplay();
+}
+
+function buildMenuPanelTexture() {
+  updateMenuPanelTexture();
+  const texture = new THREE.CanvasTexture(menuPanelCanvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.needsUpdate = true;
+  return texture;
+}
+
+function ensureMenuPanel() {
+  if (menuPanelGroup) return menuPanelGroup;
+  menuPanelTexture = buildMenuPanelTexture();
+  menuPanelMaterial = new THREE.MeshBasicMaterial({
+    map: menuPanelTexture,
+    transparent: true,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+  });
+  const geometry = new THREE.PlaneGeometry(MENU_PANEL_WIDTH, MENU_PANEL_HEIGHT);
+  const panelMesh = new THREE.Mesh(geometry, menuPanelMaterial);
+  panelMesh.renderOrder = 20;
+  const outline = new THREE.Mesh(
+    new THREE.PlaneGeometry(MENU_PANEL_WIDTH + 0.018, MENU_PANEL_HEIGHT + 0.018),
+    new THREE.MeshBasicMaterial({ color: 0x5c8bff, transparent: true, opacity: 0.16, depthWrite: false })
+  );
+  outline.renderOrder = 15;
+  const group = new THREE.Group();
+  group.add(outline);
+  group.add(panelMesh);
+  group.visible = false;
+  scene.add(group);
+  menuPanelGroup = group;
+  menuPanelMesh = panelMesh;
+  return group;
+}
+
+function setMenuPanelVisible(visible) {
+  if (visible && !menuPanelGroup) {
+    ensureMenuPanel();
+  }
+  if (!menuPanelGroup) return;
+  menuPanelVisible = visible;
+  menuPanelGroup.visible = visible;
+  if (visible && renderer.xr.isPresenting && renderer.xr.getCamera()) {
+    updateMenuPanelTransform(renderer.xr.getCamera());
+  }
+  updatePreviewDisplay();
+}
+
+function toggleMenuPanel() {
+  setMenuPanelVisible(!menuPanelVisible);
+}
+
+function updateMenuPanelTransform(xrCam, controller = null) {
+  if (!menuPanelGroup) return;
+  let basePos;
+  let baseQuat;
+  let isRight = false;
+  if (controller) {
+    basePos = new THREE.Vector3().setFromMatrixPosition(controller.matrixWorld);
+    baseQuat = new THREE.Quaternion().setFromRotationMatrix(controller.matrixWorld);
+    if (rightController && controller === rightController) {
+      isRight = true;
+    }
+  } else if (xrCam) {
+    basePos = new THREE.Vector3().setFromMatrixPosition(xrCam.matrixWorld);
+    baseQuat = new THREE.Quaternion().setFromRotationMatrix(xrCam.matrixWorld);
+  } else {
+    return;
+  }
+  const offset = MENU_PANEL_OFFSET.clone();
+  if (isRight) {
+    offset.x = -offset.x;
+  }
+  offset.applyQuaternion(baseQuat);
+  menuPanelGroup.position.copy(basePos).add(offset);
+
+  // Rotate panel around controller's Y-axis (vertical)
+  // Left hand: CCW 90 (+PI/2), Right hand: CW 90 (-PI/2)
+  const additionalQuat = new THREE.Quaternion().setFromAxisAngle(
+    new THREE.Vector3(0, 1, 0),
+    isRight ? -Math.PI / 2 : Math.PI / 2
+  );
+  menuPanelGroup.quaternion.copy(baseQuat).multiply(additionalQuat);
+}
+
+function getCurrentForwardDirection() {
+  const cam = renderer.xr.isPresenting ? renderer.xr.getCamera() : camera;
+  if (!cam) return new THREE.Vector3(0, 0, -1);
+  const worldQuat = new THREE.Quaternion().setFromRotationMatrix(cam.matrixWorld);
+  return new THREE.Vector3(0, 0, -1).applyQuaternion(worldQuat).normalize();
+}
+
+function clearPreviewDisplay() {
+  if (currentArc) {
+    solarSystemGroup.remove(currentArc);
+    currentArc.geometry.dispose();
+    currentArc.material.dispose();
+    currentArc = null;
+  }
+  if (currentTargetCircle) {
+    solarSystemGroup.remove(currentTargetCircle);
+    currentTargetCircle.material.dispose();
+    currentTargetCircle = null;
+  }
+}
+
+function createGreatCircleArcMesh(startDir, targetDir, angleRad) {
+  const segments = angleRad >= THREE.MathUtils.degToRad(150.0)
+    ? MENU_ARC_MAX_SEGMENTS
+    : MENU_ARC_MIN_SEGMENTS;
+  const points = [];
+
+  const axis = new THREE.Vector3().crossVectors(startDir, targetDir);
+  if (axis.lengthSq() < 1e-6) {
+    axis.set(1, 0, 0).cross(startDir);
+    if (axis.lengthSq() < 1e-6) {
+      axis.set(0, 1, 0).cross(startDir);
+    }
+  }
+  axis.normalize();
+
+  for (let i = 0; i <= segments; i += 1) {
+    const t = i / segments;
+    const currentAngle = angleRad * t;
+    menuTarget.copy(startDir).applyAxisAngle(axis, currentAngle).normalize();
+    const scaled = menuTarget.clone().multiplyScalar(SYMBOL_RADIUS - 0.4);
+    points.push(scaled);
+  }
+  const curve = new THREE.CatmullRomCurve3(points);
+  const tubeRadius = SYMBOL_RADIUS * Math.tan(THREE.MathUtils.degToRad(MENU_ARC_WIDTH_DEG) * 0.5) * 0.6;
+  const geometry = new THREE.TubeGeometry(curve, segments * 3, Math.max(0.5, tubeRadius), 8, false);
+  const material = new THREE.MeshBasicMaterial({
+    color: 0x7fdbff,
+    transparent: true,
+    opacity: 0.0,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+  });
+  const mesh = new THREE.Mesh(geometry, material);
+  mesh.renderOrder = 30;
+  solarSystemGroup.add(mesh);
+  return mesh;
+}
+
+function updateDynamicArc() {
+  if (currentArc) {
+    solarSystemGroup.remove(currentArc);
+    currentArc.geometry.dispose();
+    currentArc.material.dispose();
+    currentArc = null;
+  }
+
+  if (!menuPanelVisible || !selectedStarObject) return;
+
+  const forward = getCurrentForwardDirection();
+  const targetDir = selectedStarObject.worldDirection.clone().normalize();
+  const angleRad = forward.angleTo(targetDir);
+
+  if (angleRad >= THREE.MathUtils.degToRad(MENU_ARC_SKIP_THRESHOLD_DEG)) {
+    currentArc = createGreatCircleArcMesh(forward, targetDir, angleRad);
+    currentArc.material.opacity = 0.9;
+  }
+}
+
+function updatePreviewDisplay() {
+  clearPreviewDisplay();
+  selectedStarObject = null;
+
+  if (!menuPanelVisible) return;
+
+  const selectedEntry = menuPanelEntries[menuSelectedIndex];
+  if (!selectedEntry || selectedEntry.isCancel) return;
+
+  const starObj = famousStarObjects.find((obj) => obj.name === selectedEntry.star.name);
+  if (!starObj) return;
+
+  selectedStarObject = starObj;
+
+  const targetDir = starObj.worldDirection.clone().normalize();
+
+  currentTargetCircle = createCircleOutlineSprite('rgba(127, 219, 255, 0.9)');
+  currentTargetCircle.scale.set(6, 6, 1.0);
+  currentTargetCircle.position.copy(targetDir).multiplyScalar(SYMBOL_RADIUS - 0.2);
+  currentTargetCircle.renderOrder = 35;
+  solarSystemGroup.add(currentTargetCircle);
+
+  setStatus(`Previewing ${starObj.name}`);
+  updateDynamicArc();
+}
+
+
 
 function altAzToVector(altDeg, azDeg, radius) {
   const alt = THREE.MathUtils.degToRad(altDeg);
@@ -945,7 +1260,7 @@ const famousStarObjects = FAMOUS_STARS.map((def) => {
   label.visible = false;
   solarSystemGroup.add(label);
 
-  return { ...def, equatorialDirection, worldDirection, label };
+  return { ...def, equatorialDirection, worldDirection, label, highlightUntilMs: 0 };
 });
 
 const zenithMarker = createCrossMarkerSprite('rgba(210, 244, 255, 0.96)');
@@ -1166,26 +1481,26 @@ function getControllerRayDirections(xrFrame) {
 }
 
 function updateFamousStarHoverLabels(xrFrame) {
+  const nowMs = performance.now();
+  const shouldKeepVisible = (star) => star.highlightUntilMs > nowMs || (menuPanelVisible && star === selectedStarObject);
   if (!renderer.xr.isPresenting) {
     for (const star of famousStarObjects) {
-      star.label.visible = false;
+      star.label.visible = shouldKeepVisible(star);
     }
     return;
   }
 
-  const rayDirs = getControllerRayDirections(xrFrame);
-  if (!rayDirs || rayDirs.length === 0) {
-    for (const star of famousStarObjects) {
-      star.label.visible = false;
-    }
-    return;
+  for (const star of famousStarObjects) {
+    star.label.visible = shouldKeepVisible(star);
   }
+
+  const rayDirs = getControllerRayDirections(xrFrame);
+  if (!rayDirs || rayDirs.length === 0) return;
 
   let bestStar = null;
   let bestDot = FAMOUS_STAR_HIT_COS;
 
   for (const star of famousStarObjects) {
-    star.label.visible = false;
     for (const rayDir of rayDirs) {
       const dot = rayDir.dot(star.worldDirection);
       if (dot > bestDot) {
@@ -1235,6 +1550,70 @@ function updateVrSplash(text) {
   }
 }
 
+function processMenuButtonInput(xrFrame) {
+  if (!renderer.xr.isPresenting || !session) return;
+  const sources = session.inputSources;
+  for (const src of sources) {
+    if (src.handedness !== 'left' && src.handedness !== 'right') continue;
+    const controller = src.handedness === 'left' ? leftController : rightController;
+    if (!controller) continue;
+
+    const gp = src.gamepad;
+    if (!gp) continue;
+
+    let isThisControllerActive = (activeMenuController === controller);
+
+    if (gp.buttons) {
+      let state = menuButtonStates.get(src);
+      if (!state || state.length !== gp.buttons.length) {
+        state = new Array(gp.buttons.length).fill(false);
+      }
+      for (let idx = 0; idx < gp.buttons.length; idx += 1) {
+        const button = gp.buttons[idx];
+        if (!button) continue;
+        const wasPressed = state[idx];
+        const isPressed = Boolean(button.pressed);
+
+        if (isPressed && !wasPressed) {
+          if (idx > 2) {
+            // Menu button pressed
+            if (menuPanelVisible && isThisControllerActive) {
+              setMenuPanelVisible(false);
+              activeMenuController = null;
+            } else {
+              activeMenuController = controller;
+              setMenuPanelVisible(true);
+            }
+          }
+        }
+        state[idx] = isPressed;
+      }
+      menuButtonStates.set(src, state);
+    }
+
+    if (menuPanelVisible && isThisControllerActive && gp.axes) {
+      const nowMs = performance.now();
+      if (nowMs - thumbstickDebounceTimer > 250) {
+        let yAxis = 0;
+        if (gp.axes.length >= 4) {
+          yAxis = gp.axes[3];
+        } else if (gp.axes.length >= 2) {
+          yAxis = gp.axes[1];
+        }
+
+        if (yAxis > 0.5) {
+          menuSelectedIndex = (menuSelectedIndex + 1) % menuPanelEntries.length;
+          updateMenuPanelTexture();
+          thumbstickDebounceTimer = nowMs;
+        } else if (yAxis < -0.5) {
+          menuSelectedIndex = (menuSelectedIndex - 1 + menuPanelEntries.length) % menuPanelEntries.length;
+          updateMenuPanelTexture();
+          thumbstickDebounceTimer = nowMs;
+        }
+      }
+    }
+  }
+}
 function formatBytesMiB(bytes) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MiB`;
 }
@@ -1389,6 +1768,8 @@ async function prepareVrButton() {
         setStatus(desktopModeLabel());
         pendingExtendedStarsSplash = false;
         clearVrSplash();
+        setMenuPanelVisible(false);
+        menuButtonStates = new WeakMap();
       });
     } catch (error) {
       setStatus(`Failed to start VR (${error.message})`);
@@ -1406,6 +1787,26 @@ function onResize() {
 }
 
 window.addEventListener('resize', onResize);
+
+window.addEventListener('keydown', (event) => {
+  if (event.key === 'm' || event.key === 'M') {
+    event.preventDefault();
+    toggleMenuPanel();
+  } else if (menuPanelVisible) {
+    if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      menuSelectedIndex = (menuSelectedIndex - 1 + menuPanelEntries.length) % menuPanelEntries.length;
+      updateMenuPanelTexture();
+    } else if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      menuSelectedIndex = (menuSelectedIndex + 1) % menuPanelEntries.length;
+      updateMenuPanelTexture();
+    } else if (event.key === 'Enter') {
+      event.preventDefault();
+      setMenuPanelVisible(false);
+    }
+  }
+});
 
 // Fixed initial heading: facing north.
 camera.lookAt(0, EYE_HEIGHT_M, -10);
@@ -1458,6 +1859,10 @@ renderer.setAnimationLoop((_time, xrFrame) => {
     lastSolarUpdateMs = nowMs;
   }
 
+  if (menuPanelVisible && selectedStarObject) {
+    updateDynamicArc();
+  }
+
   // Keep sky and stars centered around the observer.
   if (!renderer.xr.isPresenting) {
     sky.position.copy(camera.position);
@@ -1466,6 +1871,9 @@ renderer.setAnimationLoop((_time, xrFrame) => {
     }
     solarSystemGroup.position.copy(camera.position);
     horizonGroup.position.copy(camera.position);
+    if (menuPanelVisible) {
+      updateMenuPanelTransform(camera);
+    }
   }
 
   if (renderer.xr.isPresenting) {
@@ -1476,6 +1884,11 @@ renderer.setAnimationLoop((_time, xrFrame) => {
     }
     solarSystemGroup.position.copy(sky.position);
     horizonGroup.position.copy(sky.position);
+
+    processMenuButtonInput(xrFrame);
+    if (menuPanelVisible && xrCam) {
+      updateMenuPanelTransform(xrCam, activeMenuController);
+    }
 
     if (vrSplashSprite) {
       if (nowMs > vrSplashUntilMs) {
