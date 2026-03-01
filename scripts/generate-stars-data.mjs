@@ -23,7 +23,7 @@ const FAINT_LAYER_OPACITY = 0.03;
 const OPACITY_CURVE_EXP = 2.2;
 const FAINT_SIZE_BOOST_START_T = 0.65;
 const FAINT_SIZE_BOOST_EXP = 1.2;
-const MAX_FAINT_SIZE_BOOST = 1.8;
+const MAX_FAINT_SIZE_BOOST = 1.35;
 const OPACITY_FLOOR = 0.006;
 
 function bvToRgb(bvRaw) {
