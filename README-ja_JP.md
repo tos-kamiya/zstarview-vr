@@ -87,7 +87,7 @@ VR版では既存の操作思想（ユーザー自身が向きを変える）を
 ## 使い方（デスクトップモード）
 
 1. `?view=fisheye180` を付けて開く:
-   - `https://tos-kamiya.github.io/zstarview-vr/?view=fisheye180`
+   - https://tos-kamiya.github.io/zstarview-vr/?maxMag=10&view=fisheye180
 2. 矢印キー操作:
    - `←/→` で方位
    - `↑/↓` で仰角

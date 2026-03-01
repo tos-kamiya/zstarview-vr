@@ -86,7 +86,7 @@ The VR variant keeps the existing interaction model ("the user turns to face the
 ## Usage (Desktop Mode)
 
 1. Open with `?view=fisheye180`:
-   - `https://tos-kamiya.github.io/zstarview-vr/?view=fisheye180`
+   - https://tos-kamiya.github.io/zstarview-vr/?maxMag=10&view=fisheye180
 2. Use arrow keys:
    - `←/→` for azimuth
    - `↑/↓` for altitude
