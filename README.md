@@ -1,12 +1,16 @@
 # zstarview-vr
 
-WebVR prototype of a sky viewer (default location: Tokyo, Japan).
+Experimental WebXR port of the AI-assisted Python sky viewer “zstarview”.
 
-Try it on GitHub Pages (for Quest 3 and other supported devices/browsers):
+Try `zstarview-vr` on GitHub Pages (for Quest 3 and other supported devices/browsers):
 
-- https://tos-kamiya.github.io/zstarview-vr/
+https://tos-kamiya.github.io/zstarview-vr/
 
-You can experience the app by opening the URL above.
+This repository represents a milestone snapshot of an ongoing migration
+from a desktop Python/Qt application to a browser-based immersive prototype.
+
+Original desktop application:  
+https://github.com/tos-kamiya/zstarview (Python/Qt version)
 
 ## Quick Links
 

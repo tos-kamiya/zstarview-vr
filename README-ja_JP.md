@@ -1,12 +1,18 @@
 # zstarview-vr
 
-空の見え方を表示する WebVR アプリです（デフォルト観測地点: 東京）。
+AI支援により開発された Python 製星空ビューア「zstarview」を
+WebXR へ移植する実験的プロトタイプです。
 
-GitHub Pages（Quest 3 など対応デバイス・ブラウザ向け）:
+GitHub Pages 上で体験できます（Quest 3 などの対応デバイス／ブラウザ向け）：
 
-- https://tos-kamiya.github.io/zstarview-vr/
+https://tos-kamiya.github.io/zstarview-vr/
 
-上記 URL を開くことで利用できます。
+本リポジトリは、デスクトップ版（Python/Qt）から
+ブラウザベースの没入型プロトタイプへの移行を進める
+過程のマイルストーン・スナップショットです。
+
+元のデスクトップアプリケーション：  
+https://github.com/tos-kamiya/zstarview （Python/Qt 版）
 
 ## クイックリンク
 
