@@ -45,9 +45,13 @@ GitHub Pages（Quest 3 など対応デバイス・ブラウザ向け）:
 - [Mexico City, MX](https://tos-kamiya.github.io/zstarview-vr/?city=Mexico%20City&country=MX)
 - [Sao Paulo, BR](https://tos-kamiya.github.io/zstarview-vr/?city=Sao%20Paulo&country=BR)
 
-## スクリーンショット
+## スクリーンショット & 動画
 
-デスクトップモード（`?view=fisheye180`）:
+**Quest 3（動画キャプチャ）**
+
+[▶ YouTubeで見る](https://www.youtube.com/watch?v=DuhdbugqAIg)
+
+**デスクトップ（Webブラウザ版）**
 
 ![Desktop fisheye 180 screenshot](./imgs/browser-fisheye180.png)
 
