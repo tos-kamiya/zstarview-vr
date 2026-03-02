@@ -53,9 +53,9 @@ https://github.com/tos-kamiya/zstarview （Python/Qt 版）
 
 ## スクリーンショット & 動画
 
-**Quest 3（動画キャプチャ）**
+**Quest 3 -- ビデオキャプチャ(YouTube)**
 
-[▶ YouTubeで見る](https://www.youtube.com/watch?v=DuhdbugqAIg)
+[![Watch on YouTube – zstarview-vr demo](./imgs/thumb-DuhdbugqAIg.png)](https://www.youtube.com/watch?v=DuhdbugqAIg)
 
 **デスクトップ（Webブラウザ版）**
 

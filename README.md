@@ -51,9 +51,9 @@ Major cities (about 20):
 
 ## Screenshots & Video
 
-**Quest 3 (Video Capture)**
+**Quest 3 -- Video Capture (YouTube)**
 
-[▶ Watch on YouTube](https://www.youtube.com/watch?v=DuhdbugqAIg)
+[![Watch on YouTube – zstarview-vr demo](./imgs/thumb-DuhdbugqAIg.png)](https://www.youtube.com/watch?v=DuhdbugqAIg)
 
 **Desktop web browser**
 
