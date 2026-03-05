@@ -94,6 +94,19 @@ VR版では既存の操作思想（ユーザー自身が向きを変える）を
 - **プレビュー機能**: メニュー操作中、視界の中心から現在選択されている恒星に向かって、空間上に大円弧（アーチ）が動的に描画されます。また、目標の恒星は水色のサークルマーカーで強調表示されます。
 - **メニューを閉じる**: もう一度メニューボタンを押す（デスクトップでは Enter キー）と閉じます。
 
+## 新機能: 星座（アステリズム）オーバーレイ（zstarview から移植）
+
+- 有名恒星にポインターを合わせると、その恒星を含むアステリズム（線パターン）を表示します。
+- 同じ恒星に複数のアステリズムがある場合は、3秒ごとに切り替えて表示します。
+- アステリズム定義は zstarview と同じ HIP/source-id ベースで取り込んでいます。
+
+取り込み済みアステリズム:
+
+- 冬: `Winter Triangle`（冬の大三角）, `Orion's Belt`（オリオンの三ツ星）, `Orion's Sword`（オリオンの剣）, `Winter Hexagon`（冬のダイヤモンド）, `Hyades V`（ヒアデスのV字）
+- 春: `Big Dipper`（北斗七星）, `Little Dipper`（こぐま座のひしゃく）, `Spring Triangle`（春の大三角）, `Arc to Arcturus`（アルクトゥールスへの弧）, `Leo Sickle`（しし座の鎌）
+- 夏: `Summer Triangle`（夏の大三角）, `Northern Cross`（北十字）, `Teapot`（ティーポット）, `Keystone`（ヘルクレスの要石）, `Coathanger`（コートハンガー）
+- 秋: `Great Square of Pegasus`（ペガススの四辺形）, `Circlet of Pisces`（うお座の環）, `Water Jar of Aquarius`（みずがめ座の水がめ）, `Andromeda Chain`（アンドロメダの鎖）, `Autumn Triangle`（秋の大三角）
+
 ## 使い方（デスクトップモード）
 
 1. `?view=fisheye180` を付けて開く:
@@ -117,6 +130,9 @@ VR版では既存の操作思想（ユーザー自身が向きを変える）を
   Source（Hipparcos/Tycho）: https://cdsarc.cds.unistra.fr/ftp/I/239/  
   Source（Tycho-2）: https://cdsarc.cds.unistra.fr/ftp/I/259/  
   zstarview 側のライセンス注記: ODbL または CC BY-NC 3.0 IGO（非商用）
+- 深宇宙天体データ（`public/data/dso.csv`）: OpenNGC（PyOngc 経由）  
+  Source: https://github.com/mattiaverga/OpenNGC  
+  License: CC BY-SA 4.0
 
 ## 開発者向け情報
 

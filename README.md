@@ -91,6 +91,19 @@ The VR variant keeps the existing interaction model ("the user turns to face the
 - **Preview**: While browsing, a dynamic great-circle arc is drawn from the center of your view to the currently highlighted star. The target star is marked with a glowing circle.
 - **Exit Menu**: Press the Menu button again (or Enter on desktop) to close the menu.
 
+## Feature: Asterism Overlay (Imported from zstarview)
+
+- When you point at a famous star, an asterism (line pattern) that includes that star is shown.
+- If multiple asterisms share the same star, the overlay rotates every 3 seconds.
+- Asterism definitions are imported in HIP/source-id form to match zstarview data.
+
+Imported asterisms:
+
+- Winter: `Winter Triangle`, `Orion's Belt`, `Orion's Sword`, `Winter Hexagon`, `Hyades V`
+- Spring: `Big Dipper`, `Little Dipper`, `Spring Triangle`, `Arc to Arcturus`, `Leo Sickle`
+- Summer: `Summer Triangle`, `Northern Cross`, `Teapot`, `Keystone`, `Coathanger`
+- Autumn: `Great Square of Pegasus`, `Circlet of Pisces`, `Water Jar of Aquarius`, `Andromeda Chain`, `Autumn Triangle`
+
 ## Usage (Desktop Mode)
 
 1. Open with `?view=fisheye180`:
@@ -114,6 +127,9 @@ Data source licenses (inherited from zstarview dataset sources):
   Source (Hipparcos/Tycho): https://cdsarc.cds.unistra.fr/ftp/I/239/  
   Source (Tycho-2): https://cdsarc.cds.unistra.fr/ftp/I/259/  
   License note in zstarview: ODbL or CC BY-NC 3.0 IGO (non-commercial)
+- Deep-sky objects (`public/data/dso.csv`): OpenNGC via PyOngc  
+  Source: https://github.com/mattiaverga/OpenNGC  
+  License: CC BY-SA 4.0
 
 ## Developer Notes
 
