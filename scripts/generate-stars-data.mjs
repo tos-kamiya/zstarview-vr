@@ -25,6 +25,7 @@ const FAINT_SIZE_BOOST_START_T = 0.78;
 const FAINT_SIZE_BOOST_EXP = 1.2;
 const MAX_FAINT_SIZE_BOOST = 1.35;
 const OPACITY_FLOOR = 0.006;
+const VMAG_BRIGHTNESS_MULTIPLIER = 2.5;
 
 function bvToRgb(bvRaw) {
   const bv = Number.isFinite(bvRaw) ? bvRaw : NaN;
@@ -37,10 +38,9 @@ function bvToRgb(bvRaw) {
 }
 
 function brightnessFromVmag(vmag) {
-  const bright = BRIGHTEST_VMAG;
-  const faint = EXTRA10_MAX_VMAG;
-  const t = Math.max(0, Math.min(1, (faint - vmag) / (faint - bright)));
-  return 0.16 + 0.84 * Math.pow(t, 1.2);
+  const lRaw = Math.pow(VMAG_BRIGHTNESS_MULTIPLIER, 1.0 - vmag);
+  const colorFactorBase = Math.max(0, Math.min(1, Math.pow(lRaw, 0.6)));
+  return Math.max(0, Math.min(1, 0.15 + 0.85 * colorFactorBase));
 }
 
 function lerp(a, b, t) {
