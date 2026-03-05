@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import * as Astronomy from 'astronomy-engine';
-import { FAMOUS_STARS } from './generated/famous-stars-data.js';
+import { FAMOUS_STARS, ASTERISM_STARS } from './generated/famous-stars-data.js';
 import packageJson from '../package.json';
 
 const DEFAULT_LOCATION = {
@@ -77,10 +77,20 @@ const ASTERISM_LINE_COLOR = 0x6bc6ff;
 const ASTERISM_LABEL_COLOR = 'rgba(117, 204, 255, 0.98)';
 const ASTERISM_LABEL_OUTLINE = 'rgba(5, 18, 35, 0.90)';
 const LABEL_LAYOUT_MARGIN_PX = 10;
-const LABEL_LAYOUT_INTERVAL_MS = 500;
+const LABEL_LAYOUT_INTERVAL_MS = 100;
 const SOLAR_UPDATE_INTERVAL_MS = 500;
 const LABEL_LAYOUT_MAX_RADIUS_PX = 240;
 const LABEL_LAYOUT_RING_STEP_PX = 18;
+const LABEL_LAYOUT_EASE_STEP_PX = 16;
+const LABEL_CANVAS_BASE_ASPECT = 512 / 192;
+const LABEL_COLLISION_PAD_X_PX = 4;
+const LABEL_COLLISION_PAD_Y_PX = 12;
+const LABEL_COLLISION_HEIGHT_SCALE = 1.18;
+const LABEL_COLLISION_USE_FULL_SPRITE_BOUNDS = true;
+const SHOW_LABEL_BOUNDS_DEBUG = false;
+const SHOW_LABEL_BOUNDS_DEBUG_3D = false;
+const SHOW_LABEL_BOUNDS_DEBUG_2D = false;
+const COLORIZE_LABEL_SPRITES_DEBUG = false;
 // Debug switch: disable all label rendering/layout to isolate freeze root-cause.
 const ENABLE_LABEL_RENDER = true;
 
@@ -98,12 +108,26 @@ function buildLabelLayoutOffsets() {
 const LABEL_LAYOUT_OFFSETS = buildLabelLayoutOffsets();
 
 const ASTERISM_DEFS = [
-  { key: 'winter_triangle', name: 'Winter Triangle', path: ['Sirius', 'Procyon', 'Betelgeuse', 'Sirius'] },
-  { key: 'orions_belt', name: "Orion's Belt", path: ['Alnitak', 'Alnilam', 'Mintaka'] },
-  { key: 'summer_triangle', name: 'Summer Triangle', path: ['Vega', 'Deneb', 'Altair', 'Vega'] },
-  { key: 'big_dipper', name: 'Big Dipper', path: ['Dubhe', 'Merak', 'Phecda', 'Megrez', 'Alioth', 'Mizar', 'Alkaid'] },
-  { key: 'spring_triangle', name: 'Spring Triangle', path: ['Arcturus', 'Spica', 'Regulus', 'Arcturus'] },
-  { key: 'great_square_of_pegasus', name: 'Great Square of Pegasus', path: ['Markab', 'Scheat', 'Alpheratz', 'Algenib', 'Markab'] },
+  { key: 'winter_triangle', name: 'Winter Triangle', season: 'winter', path: ['HIP32349', 'HIP37279', 'HIP27989', 'HIP32349'] },
+  { key: 'orions_belt', name: "Orion's Belt", season: 'winter', path: ['HIP26727', 'HIP26311', 'HIP25930'] },
+  { key: 'orions_sword', name: "Orion's Sword", season: 'winter', path: ['HIP26311', 'HIP26241', 'HIP27366'] },
+  { key: 'winter_hexagon', name: 'Winter Hexagon', season: 'winter', path: ['HIP24608', 'HIP21421', 'HIP24436', 'HIP32349', 'HIP37279', 'HIP37826', 'HIP24608'] },
+  { key: 'hyades_v', name: 'Hyades V', season: 'winter', path: ['HIP20205', 'HIP21421', 'HIP20889', 'HIP20455', 'HIP20205'] },
+  { key: 'big_dipper', name: 'Big Dipper', season: 'spring', path: ['HIP54061', 'HIP53910', 'HIP58001', 'HIP59774', 'HIP62956', 'HIP65378', 'HIP67301'] },
+  { key: 'little_dipper', name: 'Little Dipper', season: 'spring', path: ['HIP11767', 'HIP85822', 'HIP82080', 'HIP77055', 'HIP74793', 'HIP75097', 'HIP72607', 'HIP77055'] },
+  { key: 'spring_triangle', name: 'Spring Triangle', season: 'spring', path: ['HIP69673', 'HIP65474', 'HIP57632', 'HIP69673'] },
+  { key: 'arc_to_arcturus', name: 'Arc to Arcturus', season: 'spring', path: ['HIP67301', 'HIP65378', 'HIP62956', 'HIP69673'] },
+  { key: 'leo_sickle', name: 'Leo Sickle', season: 'spring', path: ['HIP49669', 'HIP50583', 'HIP50335', 'HIP48455', 'HIP47908', 'HIP49669'] },
+  { key: 'summer_triangle', name: 'Summer Triangle', season: 'summer', path: ['HIP91262', 'HIP102098', 'HIP97649', 'HIP91262'] },
+  { key: 'northern_cross', name: 'Northern Cross', season: 'summer', path: ['HIP102098', 'HIP100453', 'HIP95947', 'HIP100453', 'HIP97165', 'HIP100453', 'HIP102488'] },
+  { key: 'teapot', name: 'Teapot', season: 'summer', path: ['HIP88635', 'HIP90185', 'HIP93506', 'HIP92855', 'HIP92041', 'HIP90496', 'HIP89931', 'HIP88635'] },
+  { key: 'keystone', name: 'Keystone', season: 'summer', path: ['HIP83207', 'HIP81693', 'HIP84379', 'HIP86974', 'HIP83207'] },
+  { key: 'coathanger', name: 'Coathanger', season: 'summer', path: ['HIP94703', 'HIP95498', 'HIP96275', 'HIP96757', 'HIP97365', 'HIP96275', 'HIP96837', 'HIP96516'] },
+  { key: 'great_square_of_pegasus', name: 'Great Square of Pegasus', season: 'autumn', path: ['HIP113963', 'HIP113881', 'HIP677', 'HIP1067', 'HIP113963'] },
+  { key: 'circlet_of_pisces', name: 'Circlet of Pisces', season: 'autumn', path: ['HIP7097', 'HIP8198', 'HIP9487', 'HIP113889', 'HIP109427', 'HIP7097'] },
+  { key: 'water_jar_of_aquarius', name: 'Water Jar of Aquarius', season: 'autumn', path: ['HIP106278', 'HIP109074', 'HIP110395', 'HIP113136', 'HIP110003', 'HIP109074'] },
+  { key: 'andromeda_chain', name: 'Andromeda Chain', season: 'autumn', path: ['HIP677', 'HIP5447', 'HIP9640'] },
+  { key: 'autumn_triangle', name: 'Autumn Triangle', season: 'autumn', path: ['HIP113963', 'HIP9884', 'HIP113368', 'HIP113963'] },
 ];
 
 const menuPanelCanvas = document.createElement('canvas');
@@ -127,10 +151,14 @@ let pointerHoverCircles = [];
 let selectedStarObject = null;
 let hoveredFamousStar = null;
 let asterismObjects = [];
-let asterismKeysByStar = new Map();
+let asterismKeysBySourceId = new Map();
 let activeAsterism = null;
 let lastLabelLayoutMs = 0;
 let lastRuntimeWarning = '';
+let labelBoundsGroup = null;
+const labelBoundsPool = [];
+let labelBoundsCanvas = null;
+let labelBoundsCtx = null;
 
 const canvas = document.getElementById('scene');
 const hudEl = document.getElementById('hud');
@@ -359,26 +387,39 @@ function createStarfieldFromLayer(layer, radius) {
 }
 
 function createTextSprite(label, fillStyle = 'rgba(255,255,255,0.96)', strokeStyle = 'rgba(0,0,0,0.86)') {
-  const cnv = document.createElement('canvas');
-  cnv.width = 512;
-  cnv.height = 192;
-  const ctx = cnv.getContext('2d');
-  ctx.clearRect(0, 0, cnv.width, cnv.height);
-  ctx.font = 'bold 98px "Noto Sans", "Noto Sans JP", "Segoe UI", sans-serif';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.lineWidth = 12;
-  ctx.strokeStyle = strokeStyle;
-  ctx.fillStyle = fillStyle;
-  const metrics = ctx.measureText(label);
-  const measuredWidth = Math.max(
-    1,
-    metrics.width + ctx.lineWidth * 2 + 8,
-  );
+  const fontSpec = 'bold 98px "Noto Sans", "Noto Sans JP", "Segoe UI", sans-serif';
+  const lineWidth = 12;
+  const paddingX = 24;
+  const paddingY = 18;
+
+  const probe = document.createElement('canvas');
+  const probeCtx = probe.getContext('2d');
+  probeCtx.font = fontSpec;
+  const metrics = probeCtx.measureText(label);
+  const measuredWidth = Math.max(1, metrics.width + lineWidth * 2 + 8);
   const measuredHeight = Math.max(
     1,
-    ((metrics.actualBoundingBoxAscent || 70) + (metrics.actualBoundingBoxDescent || 28)) + ctx.lineWidth * 2 + 8,
+    ((metrics.actualBoundingBoxAscent || 70) + (metrics.actualBoundingBoxDescent || 28)) + lineWidth * 2 + 8,
   );
+
+  const cnv = document.createElement('canvas');
+  cnv.width = Math.max(256, Math.ceil(measuredWidth + paddingX * 2));
+  cnv.height = Math.max(128, Math.ceil(measuredHeight + paddingY * 2));
+  const ctx = cnv.getContext('2d');
+  ctx.clearRect(0, 0, cnv.width, cnv.height);
+  if (COLORIZE_LABEL_SPRITES_DEBUG) {
+    ctx.fillStyle = 'rgba(255, 64, 160, 0.22)';
+    ctx.strokeStyle = 'rgba(255, 120, 200, 0.55)';
+    ctx.lineWidth = 2;
+    ctx.fillRect(4, 4, cnv.width - 8, cnv.height - 8);
+    ctx.strokeRect(4, 4, cnv.width - 8, cnv.height - 8);
+  }
+  ctx.font = fontSpec;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.lineWidth = lineWidth;
+  ctx.strokeStyle = strokeStyle;
+  ctx.fillStyle = fillStyle;
   ctx.strokeText(label, cnv.width / 2, cnv.height / 2 + 1);
   ctx.fillText(label, cnv.width / 2, cnv.height / 2 + 1);
 
@@ -392,6 +433,87 @@ function createTextSprite(label, fillStyle = 'rgba(255,255,255,0.96)', strokeSty
   sprite.userData.labelMeasuredWidth = measuredWidth;
   sprite.userData.labelMeasuredHeight = measuredHeight;
   return sprite;
+}
+
+function setLabelSpriteScale(sprite, baseScaleX, baseScaleY) {
+  const w = Math.max(1, Number(sprite?.userData?.labelCanvasWidth) || 512);
+  const h = Math.max(1, Number(sprite?.userData?.labelCanvasHeight) || 192);
+  const aspect = w / h;
+  const correctedX = baseScaleX * (aspect / LABEL_CANVAS_BASE_ASPECT);
+  sprite.scale.set(correctedX, baseScaleY, 1.0);
+}
+
+function ensureLabelBoundsLine(index) {
+  if (labelBoundsPool[index]) return labelBoundsPool[index];
+  const points = [
+    new THREE.Vector3(-0.5, -0.5, 0),
+    new THREE.Vector3(0.5, -0.5, 0),
+    new THREE.Vector3(0.5, 0.5, 0),
+    new THREE.Vector3(-0.5, 0.5, 0),
+    new THREE.Vector3(-0.5, -0.5, 0),
+  ];
+  const geometry = new THREE.BufferGeometry().setFromPoints(points);
+  const material = new THREE.LineBasicMaterial({
+    color: 0xff66cc,
+    transparent: true,
+    opacity: 0.9,
+    depthTest: false,
+    depthWrite: false,
+  });
+  const line = new THREE.Line(geometry, material);
+  line.renderOrder = 45;
+  labelBoundsGroup.add(line);
+  labelBoundsPool[index] = line;
+  return line;
+}
+
+function hideUnusedLabelBounds(fromIndex = 0) {
+  for (let i = fromIndex; i < labelBoundsPool.length; i += 1) {
+    if (labelBoundsPool[i]) labelBoundsPool[i].visible = false;
+  }
+}
+
+function ensureLabelBoundsCanvas() {
+  if (labelBoundsCanvas && labelBoundsCtx) return;
+  const cnv = document.createElement('canvas');
+  cnv.style.position = 'fixed';
+  cnv.style.left = '0';
+  cnv.style.top = '0';
+  cnv.style.width = '100vw';
+  cnv.style.height = '100vh';
+  cnv.style.pointerEvents = 'none';
+  cnv.style.zIndex = '20';
+  document.body.appendChild(cnv);
+  labelBoundsCanvas = cnv;
+  labelBoundsCtx = cnv.getContext('2d');
+}
+
+function resizeLabelBoundsCanvas() {
+  if (!labelBoundsCanvas) return;
+  const w = Math.max(1, renderer.domElement?.width || Math.floor(window.innerWidth * window.devicePixelRatio));
+  const h = Math.max(1, renderer.domElement?.height || Math.floor(window.innerHeight * window.devicePixelRatio));
+  labelBoundsCanvas.width = w;
+  labelBoundsCanvas.height = h;
+}
+
+function drawLabelBoundsOverlay(rects) {
+  if (!SHOW_LABEL_BOUNDS_DEBUG_2D) return;
+  ensureLabelBoundsCanvas();
+  resizeLabelBoundsCanvas();
+  if (!labelBoundsCtx) return;
+  const ctx = labelBoundsCtx;
+  ctx.clearRect(0, 0, labelBoundsCanvas.width, labelBoundsCanvas.height);
+  if (!SHOW_LABEL_BOUNDS_DEBUG || !Array.isArray(rects)) return;
+  ctx.save();
+  ctx.strokeStyle = 'rgba(255, 102, 204, 0.95)';
+  ctx.lineWidth = 2;
+  for (const r of rects) {
+    const w = r.right - r.left;
+    const h = r.bottom - r.top;
+    if (w <= 0 || h <= 0) continue;
+    ctx.strokeRect(r.left, r.top, w, h);
+  }
+  ctx.restore();
 }
 
 function createCrossMarkerSprite(strokeStyle = 'rgba(235, 240, 255, 0.98)') {
@@ -508,33 +630,38 @@ function worldUnitsPerPixelAt(pointWorld, cam, viewportHeightPx) {
 }
 
 function buildAsterismsFromFamousStars(stars) {
-  const byName = new Map(stars.map((s) => [s.name, s]));
+  const bySourceId = new Map(
+    stars
+      .filter((s) => typeof s.sourceId === 'string' && s.sourceId.trim())
+      .map((s) => [s.sourceId.trim().toUpperCase(), s]),
+  );
   const mapped = [];
-  const byStar = new Map();
+  const bySource = new Map();
 
   for (const def of ASTERISM_DEFS) {
     const points = [];
     let ok = true;
-    for (const name of def.path) {
-      const star = byName.get(name);
+    for (const sourceId of def.path) {
+      const key = String(sourceId || '').trim().toUpperCase();
+      const star = bySourceId.get(key);
       if (!star) {
         ok = false;
         break;
       }
       points.push(star);
-      const keys = byStar.get(name) || [];
+      const keys = bySource.get(key) || [];
       if (!keys.includes(def.key)) keys.push(def.key);
-      byStar.set(name, keys);
+      bySource.set(key, keys);
     }
     if (!ok || points.length < 2) continue;
     const label = createTextSprite(def.name, ASTERISM_LABEL_COLOR, ASTERISM_LABEL_OUTLINE);
-    label.scale.set(FAMOUS_LABEL_SCALE_X, LABEL_SCALE_Y, 1.0);
+    setLabelSpriteScale(label, FAMOUS_LABEL_SCALE_X, LABEL_SCALE_Y);
     label.visible = false;
     solarSystemGroup.add(label);
     mapped.push({ key: def.key, name: def.name, pathStars: points, label });
   }
 
-  asterismKeysByStar = byStar;
+  asterismKeysBySourceId = bySource;
   return mapped;
 }
 
@@ -1418,13 +1545,16 @@ let activeLocation = { ...DEFAULT_LOCATION, source: 'default' };
 let observer = new Astronomy.Observer(activeLocation.lat, activeLocation.lon, 0);
 const solarSystemGroup = new THREE.Group();
 scene.add(solarSystemGroup);
+labelBoundsGroup = new THREE.Group();
+labelBoundsGroup.visible = SHOW_LABEL_BOUNDS_DEBUG && SHOW_LABEL_BOUNDS_DEBUG_3D;
+solarSystemGroup.add(labelBoundsGroup);
 
 const sunSprite = createCircleOutlineSprite('rgba(255, 214, 120, 0.98)');
 const moonSprite = createCircleOutlineSprite('rgba(206, 220, 255, 0.98)');
 const sunLabel = createTextSprite('Sun', 'rgba(255,228,166,0.98)');
-sunLabel.scale.set(LABEL_SCALE_X, LABEL_SCALE_Y, 1.0);
+setLabelSpriteScale(sunLabel, LABEL_SCALE_X, LABEL_SCALE_Y);
 const moonLabel = createTextSprite('Moon', 'rgba(206,220,255,0.98)');
-moonLabel.scale.set(LABEL_SCALE_X, LABEL_SCALE_Y, 1.0);
+setLabelSpriteScale(moonLabel, LABEL_SCALE_X, LABEL_SCALE_Y);
 solarSystemGroup.add(sunSprite);
 solarSystemGroup.add(moonSprite);
 solarSystemGroup.add(sunLabel);
@@ -1442,7 +1572,7 @@ const cardinalDefs = [
 ];
 for (const d of cardinalDefs) {
   const label = createTextSprite(d.label, 'rgba(156, 230, 182, 0.98)');
-  label.scale.set(LABEL_SCALE_X, LABEL_SCALE_Y, 1.0);
+  setLabelSpriteScale(label, LABEL_SCALE_X, LABEL_SCALE_Y);
   setLabelAnchor(label, altAzToVector(0.0, d.az, SYMBOL_RADIUS));
   solarSystemGroup.add(label);
 }
@@ -1461,7 +1591,7 @@ const planetObjects = planetDefs.map((def) => {
   const marker = createDiskSprite(def.color);
   marker.scale.set(1.0, 1.0, 1.0);
   const label = createTextSprite(def.label, PLANET_LABEL_COLOR);
-  label.scale.set(LABEL_SCALE_X, LABEL_SCALE_Y, 1.0);
+  setLabelSpriteScale(label, LABEL_SCALE_X, LABEL_SCALE_Y);
   solarSystemGroup.add(marker);
   solarSystemGroup.add(label);
   return { ...def, marker, label };
@@ -1604,7 +1734,7 @@ async function ensureDsoLoaded() {
       );
 
       const label = createTextSprite(String(name), 'rgba(117, 204, 255, 0.98)', 'rgba(5, 18, 35, 0.90)');
-      label.scale.set(FAMOUS_LABEL_SCALE_X, LABEL_SCALE_Y, 1.0);
+      setLabelSpriteScale(label, FAMOUS_LABEL_SCALE_X, LABEL_SCALE_Y);
       label.visible = false;
 
       dsoGroup.add(fillMesh);
@@ -1641,14 +1771,29 @@ const famousStarObjects = FAMOUS_STARS.map((def) => {
   const equatorialDirection = raDecToUnitVector(def.raHours, def.decDeg).normalize();
   const worldDirection = equatorialDirection.clone();
   const label = createTextSprite(def.name, 'rgba(234,242,255,0.98)');
-  label.scale.set(FAMOUS_LABEL_SCALE_X, LABEL_SCALE_Y, 1.0);
+  setLabelSpriteScale(label, FAMOUS_LABEL_SCALE_X, LABEL_SCALE_Y);
   setLabelAnchor(label, worldDirection.clone().multiplyScalar(SYMBOL_RADIUS));
   label.visible = false;
   solarSystemGroup.add(label);
 
   return { ...def, equatorialDirection, worldDirection, label, highlightUntilMs: 0 };
 });
-asterismObjects = buildAsterismsFromFamousStars(famousStarObjects);
+const famousSourceIds = new Set(
+  famousStarObjects
+    .map((s) => String(s.sourceId || '').trim().toUpperCase())
+    .filter(Boolean),
+);
+const asterismOnlyStarObjects = ASTERISM_STARS
+  .filter((def) => {
+    const sid = String(def.sourceId || '').trim().toUpperCase();
+    return sid && !famousSourceIds.has(sid);
+  })
+  .map((def) => {
+    const equatorialDirection = raDecToUnitVector(def.raHours, def.decDeg).normalize();
+    return { ...def, equatorialDirection, worldDirection: equatorialDirection.clone() };
+  });
+const asterismStarObjects = [...famousStarObjects, ...asterismOnlyStarObjects];
+asterismObjects = buildAsterismsFromFamousStars(asterismStarObjects);
 
 const zenithMarker = createCrossMarkerSprite('rgba(210, 244, 255, 0.96)');
 zenithMarker.scale.set(4.2, 4.2, 1.0);
@@ -1767,6 +1912,9 @@ function updateStarfieldOrientation(when) {
   for (const star of famousStarObjects) {
     star.worldDirection.copy(star.equatorialDirection).applyQuaternion(equatorialRotation).normalize();
     setLabelAnchor(star.label, star.worldDirection.clone().multiplyScalar(SYMBOL_RADIUS));
+  }
+  for (const star of asterismOnlyStarObjects) {
+    star.worldDirection.copy(star.equatorialDirection).applyQuaternion(equatorialRotation).normalize();
   }
 
   for (const dso of dsoObjects) {
@@ -2072,7 +2220,8 @@ function updateAsterismHoverOverlay() {
     return;
   }
 
-  const keys = asterismKeysByStar.get(hoveredFamousStar.name) || [];
+  const hoveredSourceId = String(hoveredFamousStar.sourceId || '').trim().toUpperCase();
+  const keys = asterismKeysBySourceId.get(hoveredSourceId) || [];
   if (keys.length === 0) {
     activeAsterism = null;
     return;
@@ -2101,112 +2250,67 @@ function updateAsterismHoverOverlay() {
 }
 
 function applyLabelLayout() {
-  if (!ENABLE_LABEL_RENDER) return;
+  if (!ENABLE_LABEL_RENDER) {
+    hideUnusedLabelBounds(0);
+    drawLabelBoundsOverlay([]);
+    return;
+  }
   const cam = getPrimaryRenderCamera();
   if (!cam) return;
 
   const viewportWidth = renderer.domElement?.width || window.innerWidth;
   const viewportHeight = renderer.domElement?.height || window.innerHeight;
-  const camQuat = new THREE.Quaternion().setFromRotationMatrix(cam.matrixWorld);
-  const camRight = new THREE.Vector3(1, 0, 0).applyQuaternion(camQuat).normalize();
-  const camUp = new THREE.Vector3(0, 1, 0).applyQuaternion(camQuat).normalize();
 
   const candidates = [];
-  if (sunLabel.visible) candidates.push({ sprite: sunLabel, priority: 0, hideOnOverlap: false });
-  if (moonLabel.visible) candidates.push({ sprite: moonLabel, priority: 0, hideOnOverlap: false });
-  for (const p of planetObjects) {
+  let displayOrder = 0;
+  const pushCandidate = (candidate) => {
+    candidates.push({ ...candidate, order: displayOrder });
+    displayOrder += 1;
+  };
+
+  if (sunLabel.visible) pushCandidate({ sprite: sunLabel, priority: 0, hideOnOverlap: false });
+  if (moonLabel.visible) pushCandidate({ sprite: moonLabel, priority: 0, hideOnOverlap: false });
+  for (let i = 0; i < planetObjects.length; i += 1) {
+    const p = planetObjects[i];
     // Keep planet labels visible in close conjunctions by allowing fallback placement.
-    if (p.label.visible) candidates.push({ sprite: p.label, priority: 1, hideOnOverlap: false });
+    if (p.label.visible) pushCandidate({ sprite: p.label, priority: 1, hideOnOverlap: false });
   }
-  if (activeAsterism?.label?.visible) candidates.push({ sprite: activeAsterism.label, priority: 2, hideOnOverlap: false });
+  if (activeAsterism?.label?.visible) pushCandidate({ sprite: activeAsterism.label, priority: 2, hideOnOverlap: false });
   for (const dso of dsoObjects) {
-    if (dso.label.visible) candidates.push({ sprite: dso.label, priority: 3, hideOnOverlap: false });
+    if (dso.label.visible) pushCandidate({ sprite: dso.label, priority: 3, hideOnOverlap: false });
   }
   for (const star of famousStarObjects) {
-    if (star.label.visible) candidates.push({ sprite: star.label, priority: 4, hideOnOverlap: false });
+    if (star.label.visible) pushCandidate({ sprite: star.label, priority: 4, hideOnOverlap: false });
   }
 
-  candidates.sort((a, b) => a.priority - b.priority);
-  const reservations = [];
+  candidates.sort((a, b) => {
+    const pa = Number.isFinite(a.priority) ? a.priority : 999;
+    const pb = Number.isFinite(b.priority) ? b.priority : 999;
+    if (pa !== pb) return pa - pb;
+    const oa = Number.isFinite(a.order) ? a.order : 0;
+    const ob = Number.isFinite(b.order) ? b.order : 0;
+    return oa - ob;
+  });
+  const debugRectIndex = 0;
+  const debugRects2d = [];
 
   for (const cand of candidates) {
     const sprite = cand.sprite;
     const anchorWorld = sprite.userData?.anchorWorld;
     const basePos = (anchorWorld instanceof THREE.Vector3 ? anchorWorld : sprite.position).clone();
-    const worldPerPx = worldUnitsPerPixelAt(basePos, cam, viewportHeight);
     const baseProjection = projectToScreen(basePos, cam, viewportWidth, viewportHeight);
     if (!baseProjection) {
       sprite.visible = false;
       sprite.userData.layoutOffsetPx = null;
       continue;
     }
-    const projectedCanvasWidth = Math.max(14, sprite.scale.x / Math.max(worldPerPx, 1e-4));
-    const projectedCanvasHeight = Math.max(10, sprite.scale.y / Math.max(worldPerPx, 1e-4));
-    const canvasW = Math.max(1, Number(sprite.userData?.labelCanvasWidth) || 512);
-    const canvasH = Math.max(1, Number(sprite.userData?.labelCanvasHeight) || 192);
-    const measuredW = Math.max(1, Number(sprite.userData?.labelMeasuredWidth) || canvasW * 0.9);
-    const measuredH = Math.max(1, Number(sprite.userData?.labelMeasuredHeight) || canvasH * 0.8);
-    const rectWidthPx = Math.max(14, projectedCanvasWidth * (measuredW / canvasW));
-    const rectHeightPx = Math.max(10, projectedCanvasHeight * (measuredH / canvasH));
-
-    const prevOffset = Array.isArray(sprite.userData?.layoutOffsetPx)
-      ? sprite.userData.layoutOffsetPx
-      : null;
-    const offsetList = prevOffset
-      ? [prevOffset, ...LABEL_LAYOUT_OFFSETS.filter(([x, y]) => !(x === prevOffset[0] && y === prevOffset[1]))]
-      : LABEL_LAYOUT_OFFSETS;
-
-    let placed = false;
-    let bestCandidate = null;
-    for (const [dxPx, dyPx] of offsetList) {
-      const shifted = basePos
-        .clone()
-        .addScaledVector(camRight, dxPx * worldPerPx)
-        .addScaledVector(camUp, -dyPx * worldPerPx);
-      const projected = projectToScreen(shifted, cam, viewportWidth, viewportHeight);
-      if (!projected) continue;
-
-      const rect = {
-        left: projected.x - rectWidthPx * 0.5,
-        right: projected.x + rectWidthPx * 0.5,
-        top: projected.y - rectHeightPx * 0.5,
-        bottom: projected.y + rectHeightPx * 0.5,
-      };
-
-      if (
-        rect.left < LABEL_LAYOUT_MARGIN_PX ||
-        rect.right > viewportWidth - LABEL_LAYOUT_MARGIN_PX ||
-        rect.top < LABEL_LAYOUT_MARGIN_PX ||
-        rect.bottom > viewportHeight - LABEL_LAYOUT_MARGIN_PX
-      ) {
-        continue;
-      }
-
-      let overlapCount = 0;
-      for (const reserved of reservations) {
-        if (rectsOverlap(rect, reserved)) overlapCount += 1;
-      }
-
-      if (!cand.hideOnOverlap || overlapCount === 0) {
-        const distance2 = dxPx * dxPx + dyPx * dyPx;
-        const changedPenalty = prevOffset && (dxPx !== prevOffset[0] || dyPx !== prevOffset[1]) ? 240 : 0;
-        const overlapPenalty = overlapCount * 100000;
-        const score = overlapPenalty + distance2 + changedPenalty;
-        if (!bestCandidate || score < bestCandidate.score) {
-          bestCandidate = { score, shifted, rect, dxPx, dyPx, overlapCount };
-        }
-      }
-    }
-
-    if (bestCandidate) {
-      sprite.position.copy(bestCandidate.shifted);
-      sprite.userData.layoutOffsetPx = [bestCandidate.dxPx, bestCandidate.dyPx];
-      reservations.push(bestCandidate.rect);
-      placed = true;
-    }
-
-    sprite.visible = placed;
+    sprite.position.copy(basePos);
+    sprite.userData.layoutOffsetPx = [0, 0];
+    sprite.visible = true;
   }
+
+  hideUnusedLabelBounds(debugRectIndex);
+  drawLabelBoundsOverlay(debugRects2d);
 }
 
 let lastSolarUpdateMs = 0;
@@ -2499,6 +2603,7 @@ function onResize() {
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
   fisheyePostMaterial.uniforms.uAspect.value = window.innerWidth / Math.max(1, window.innerHeight);
+  resizeLabelBoundsCanvas();
 }
 
 window.addEventListener('resize', onResize);
