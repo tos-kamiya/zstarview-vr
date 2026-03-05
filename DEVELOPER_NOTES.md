@@ -10,6 +10,7 @@
 - `src/`: app source code
 - `data/stars.csv`: input star catalog
 - `data/cities1000.txt`: input city catalog (GeoNames-derived)
+- `public/data/dso.csv`: input deep-sky-object catalog (OpenNGC-derived)
 - `scripts/generate-stars-data.mjs`: generator for star binary chunks
 - `scripts/generate-cities-data.mjs`: generator for `public/data/cities-index-v2.json`
 - `scripts/generate-cities-gzip.mjs`: generator for `public/data/cities-index-v2.json.gz`
@@ -48,6 +49,7 @@ from:
 
 - `data/stars.csv`
 - `data/cities1000.txt`
+- `public/data/dso.csv` (loaded directly at runtime)
 
 Then Vite builds the app into `dist/`.
 
@@ -107,6 +109,22 @@ Rule:
 - If you change city generator scripts, also regenerate and commit `public/data/cities-index-v2.json.gz`.
 
 ## Recent Updates
+
+### v0.8.0 (2026-03-06)
+
+- **Asterism Overlay Import (zstarview-aligned)**:
+  - Switched asterism definitions to HIP/source-id based paths to align with zstarview data.
+  - Added/updated seasonal asterism set including Big Dipper and Little Dipper.
+  - Hovering a famous star now resolves matching asterisms by source-id, with 3-second rotation when multiple matches exist.
+
+- **Label Layout Stabilization (temporary baseline mode)**:
+  - Disabled label-avoidance offset motion and easing logic for isolation/debugging baseline.
+  - Labels are currently placed at their anchor positions without collision-driven movement.
+  - Disabled pink label tint debug mode used during overlap diagnostics.
+
+- **Documentation Updates**:
+  - Updated both `README.md` and `README-ja_JP.md` with imported asterism behavior and lists.
+  - Japanese README now includes Japanese names for imported asterisms.
 
 ### v0.5.0 (2026-03-01)
 
