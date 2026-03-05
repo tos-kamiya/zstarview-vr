@@ -1,7 +1,7 @@
 {
   "name": "zstarview-vr",
   "private": true,
-  "version": "0.7.0",
+  "version": "0.8.0",
   "scripts": {
     "predev": "node scripts/generate-cities-data.mjs && node scripts/generate-cities-gzip.mjs && node scripts/generate-stars-data.mjs && node scripts/generate-famous-stars-data.mjs",
     "dev": "vite --host",
