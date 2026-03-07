@@ -8,13 +8,21 @@
 ## Project Structure
 
 - `src/`: app source code
+- `src/main.js`: app bootstrap and top-level render/update orchestration
+- `src/menu/vr-menu.js`: VR menu state, panel drawing, and pointer/trigger interaction
+- `src/menu/star-preview.js`: `Jump to Star` preview arc and target marker rendering
+- `src/asterisms/catalog.js`: imported asterism definitions
+- `src/asterisms/runtime.js`: source-id to runtime-star resolution for asterisms
+- `src/asterisms/render.js`: ambient/highlight asterism line rendering
 - `data/stars.csv`: input star catalog
 - `data/cities1000.txt`: input city catalog (GeoNames-derived)
 - `public/data/dso.csv`: input deep-sky-object catalog (OpenNGC-derived)
 - `scripts/generate-stars-data.mjs`: generator for star binary chunks
 - `scripts/generate-cities-data.mjs`: generator for `public/data/cities-index-v2.json`
 - `scripts/generate-cities-gzip.mjs`: generator for `public/data/cities-index-v2.json.gz`
+- `scripts/generate-famous-stars-data.mjs`: generator for `src/generated/famous-stars-data.js`
 - `src/generated/`: generated files (can be deleted safely)
+- `src/generated/famous-stars-data.js`: generated famous-star / asterism source-id dataset
 - `public/data/cities-index-v2.json`: generated city index for lazy loading
 - `public/data/cities-index-v2.json.gz`: gzip version loaded by browser and decompressed in JS
 - `dist/`: build output
@@ -143,3 +151,14 @@ Rule:
   - `Jump to Star` now distinguishes hovered preview from trigger-confirmed selection. Hover drives the preview only before the first star is confirmed; confirmed selection persists until the menu closes.
   - The target star is marked with a glowing circle, and a dynamic great-circle arc is rendered from the center of the user's field of view.
   - The menu panel appears offset to the left or right of the user's forward view depending on which controller opened it, and shows a visible pointer/menu intersection marker.
+
+### v0.8.3 (2026-03-08)
+
+- **Rendering Refactor**:
+  - Split `Jump to Star` preview rendering out of `main.js` into `src/menu/star-preview.js`.
+  - Split asterism ambient/highlight rendering out of `main.js` into `src/asterisms/render.js`.
+  - Kept `src/main.js` focused on scene setup and cross-module orchestration.
+
+- **Code Cleanup**:
+  - Removed dead preview and label-layout constants left behind by earlier interaction changes.
+  - Removed unused label collision/layout scaffolding that was no longer referenced by the simplified layout path.
