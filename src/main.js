@@ -4,6 +4,9 @@ import { LineGeometry } from 'three/examples/jsm/lines/LineGeometry.js';
 import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
 import * as Astronomy from 'astronomy-engine';
 import { FAMOUS_STARS, ASTERISM_STARS } from './generated/famous-stars-data.js';
+import { ASTERISM_DEFS } from './asterisms/catalog.js';
+import { buildAsterismsFromStars } from './asterisms/runtime.js';
+import { createVrMenu } from './menu/vr-menu.js';
 import packageJson from '../package.json';
 
 const DEFAULT_LOCATION = {
@@ -46,28 +49,7 @@ const EXTENDED_MAX_MAG_8 = 8.0;
 const EXTENDED_MAX_MAG_9 = 9.0;
 const EXTENDED_MAX_MAG_10 = 10.0;
 const APP_QUERY_PARAMS = new URLSearchParams(window.location.search);
-const MENU_PANEL_WIDTH = 0.34;
-const MENU_PANEL_HEIGHT = 0.60;
-const MENU_PANEL_FORWARD_DISTANCE = 0.95;
-const MENU_PANEL_VERTICAL_OFFSET = -0.12;
-const MENU_PANEL_SIDE_OFFSET = 0.32;
-const MENU_PANEL_COLOR = new THREE.Color('#3e434b');
-const MENU_PANEL_BORDER = 'rgba(205, 212, 220, 0.82)';
-const MENU_PANEL_TEXT_COLOR = 'rgba(247, 249, 251, 0.98)';
-const MENU_PANEL_TEXT_MUTED = 'rgba(219, 224, 230, 0.88)';
-const MENU_PANEL_LINE_HEIGHT = 34;
-const MENU_PANEL_PADDING = 26;
-const MENU_PANEL_CANVAS_WIDTH = 512;
-const MENU_PANEL_CANVAS_HEIGHT = 1120;
-const MENU_PANEL_MENU_START_Y = 280;
-const MENU_ROW_HEIGHT = 84;
-const MENU_VISIBLE_STAR_LIMIT = 10;
-const MENU_STAR_ENTRIES = FAMOUS_STARS.slice(0, MENU_VISIBLE_STAR_LIMIT);
-const MENU_ITEM_FONT = '42px "Noto Sans JP", "Noto Sans", sans-serif';
 const MENU_HIGHLIGHT_DURATION_MS = 3000;
-const MENU_ARC_DURATION_MS = 3000;
-const MENU_ARC_FADE_IN_MS = 200;
-const MENU_ARC_FADE_OUT_MS = 200;
 const MENU_ARC_MIN_SEGMENTS = 64;
 const MENU_ARC_MAX_SEGMENTS = 96;
 const MENU_ARC_WIDTH_DEG = 0.2;
@@ -116,50 +98,7 @@ function buildLabelLayoutOffsets() {
 }
 const LABEL_LAYOUT_OFFSETS = buildLabelLayoutOffsets();
 
-const ASTERISM_DEFS = [
-  { key: 'winter_triangle', name: 'Winter Triangle', season: 'winter', edges: [['HIP32349', 'HIP37279'], ['HIP37279', 'HIP27989'], ['HIP27989', 'HIP32349']] },
-  { key: 'orions_belt', name: "Orion's Belt", season: 'winter', edges: [['HIP26727', 'HIP26311'], ['HIP26311', 'HIP25930']] },
-  { key: 'winter_hexagon', name: 'Winter Hexagon', season: 'winter', edges: [['HIP24608', 'HIP21421'], ['HIP21421', 'HIP24436'], ['HIP24436', 'HIP32349'], ['HIP32349', 'HIP37279'], ['HIP37279', 'HIP37826'], ['HIP37826', 'HIP24608']] },
-  { key: 'southern_cross', name: 'Southern Cross', season: 'winter', edges: [['HIP61084', 'HIP60718'], ['HIP59747', 'HIP62434']] },
-  { key: 'southern_pointers', name: 'Southern Pointers', season: 'winter', edges: [['HIP71683', 'HIP68702']] },
-  { key: 'diamond_cross', name: 'Diamond Cross', season: 'winter', edges: [['HIP45238', 'HIP52419'], ['HIP48002', 'HIP50099']] },
-  { key: 'false_cross', name: 'False Cross', season: 'winter', edges: [['HIP42913', 'HIP45556'], ['HIP45941', 'HIP41037']] },
-  { key: 'big_dipper', name: 'Big Dipper', season: 'spring', edges: [['HIP54061', 'HIP53910'], ['HIP53910', 'HIP58001'], ['HIP58001', 'HIP59774'], ['HIP59774', 'HIP62956'], ['HIP62956', 'HIP65378'], ['HIP65378', 'HIP67301']] },
-  { key: 'little_dipper', name: 'Little Dipper', season: 'spring', edges: [['HIP11767', 'HIP85822'], ['HIP85822', 'HIP82080'], ['HIP82080', 'HIP77055'], ['HIP77055', 'HIP72607'], ['HIP72607', 'HIP75097'], ['HIP75097', 'HIP79822'], ['HIP79822', 'HIP77055']] },
-  { key: 'spring_triangle', name: 'Spring Triangle', season: 'spring', edges: [['HIP69673', 'HIP65474'], ['HIP65474', 'HIP57632'], ['HIP57632', 'HIP69673']] },
-  { key: 'arc_to_arcturus', name: 'Arc to Arcturus', season: 'spring', edges: [['HIP67301', 'HIP69673'], ['HIP69673', 'HIP65474']] },
-  { key: 'leo_sickle', name: 'Leo Sickle', season: 'spring', edges: [['HIP49669', 'HIP49583'], ['HIP49583', 'HIP50583'], ['HIP50583', 'HIP50335'], ['HIP50335', 'HIP48455'], ['HIP48455', 'HIP47908']] },
-  { key: 'southern_triangle', name: 'Southern Triangle', season: 'spring', edges: [['HIP74946', 'HIP82273'], ['HIP82273', 'HIP77952'], ['HIP77952', 'HIP74946']] },
-  { key: 'summer_triangle', name: 'Summer Triangle', season: 'summer', edges: [['HIP91262', 'HIP102098'], ['HIP102098', 'HIP97649'], ['HIP97649', 'HIP91262']] },
-  { key: 'northern_cross', name: 'Northern Cross', season: 'summer', edges: [['HIP102098', 'HIP100453'], ['HIP100453', 'HIP95947'], ['HIP100453', 'HIP97165'], ['HIP100453', 'HIP102488']] },
-  { key: 'teapot', name: 'Teapot', season: 'summer', edges: [['HIP93864', 'HIP92855'], ['HIP93864', 'HIP93506'], ['HIP93506', 'HIP92104'], ['HIP92104', 'HIP92855'], ['HIP92104', 'HIP90496'], ['HIP92855', 'HIP89931'], ['HIP90496', 'HIP89931'], ['HIP89931', 'HIP88635'], ['HIP88635', 'HIP90185'], ['HIP90185', 'HIP89931'], ['HIP93506', 'HIP90185']] },
-  { key: 'keystone', name: 'Keystone', season: 'summer', edges: [['HIP84380', 'HIP81833'], ['HIP81833', 'HIP81693'], ['HIP81693', 'HIP83207'], ['HIP83207', 'HIP84380']] },
-  { key: 'great_square_of_pegasus', name: 'Great Square of Pegasus', season: 'autumn', edges: [['HIP113963', 'HIP113881'], ['HIP113881', 'HIP677'], ['HIP677', 'HIP1067'], ['HIP1067', 'HIP113963']] },
-  { key: 'circlet_of_pisces', name: 'Circlet of Pisces', season: 'autumn', edges: [['HIP114971', 'HIP115227'], ['HIP115227', 'HIP115830'], ['HIP115830', 'HIP116771'], ['HIP116771', 'HIP117245'], ['HIP117245', 'HIP116928'], ['HIP116928', 'HIP115738'], ['HIP115738', 'HIP114971']] },
-  { key: 'water_jar_of_aquarius', name: 'Water Jar of Aquarius', season: 'autumn', edges: [['HIP110960', 'HIP111497'], ['HIP110960', 'HIP110395'], ['HIP110960', 'HIP110672']] },
-  { key: 'cassiopeia_w', name: 'Cassiopeia W', season: 'autumn', edges: [['HIP746', 'HIP3179'], ['HIP3179', 'HIP4427'], ['HIP4427', 'HIP6686'], ['HIP6686', 'HIP8886']] },
-  { key: 'house_of_cepheus', name: 'House of Cepheus', season: 'autumn', edges: [['HIP109492', 'HIP105199'], ['HIP105199', 'HIP106032'], ['HIP106032', 'HIP116727'], ['HIP116727', 'HIP112724'], ['HIP112724', 'HIP109492'], ['HIP106032', 'HIP112724']] },
-  { key: 'jobs_coffin', name: "Job's Coffin", season: 'autumn', edges: [['HIP101769', 'HIP102281'], ['HIP102281', 'HIP102532'], ['HIP102532', 'HIP101958'], ['HIP101958', 'HIP101769'], ['HIP101769', 'HIP101421']] },
-];
-
-const menuPanelCanvas = document.createElement('canvas');
-menuPanelCanvas.width = MENU_PANEL_CANVAS_WIDTH;
-menuPanelCanvas.height = MENU_PANEL_CANVAS_HEIGHT;
-const menuPanelCtx = menuPanelCanvas.getContext('2d');
-
 const menuTarget = new THREE.Vector3();
-let menuPanelGroup = null;
-let menuPanelMaterial = null;
-let menuPanelTexture = null;
-let menuPanelMesh = null;
-let menuPointerMarker = null;
-let menuPanelVisible = false;
-let menuButtonStates = new WeakMap();
-let menuPanelEntries = [];
-let menuPage = 'root';
-let menuSelectedIndex = 0;
-let menuHoveredIndex = -1;
-let thumbstickDebounceTimer = 0;
 let currentArc = null;
 let currentTargetCircle = null;
 let pointerHoverCircles = [];
@@ -174,10 +113,6 @@ let labelBoundsGroup = null;
 const labelBoundsPool = [];
 let labelBoundsCanvas = null;
 let labelBoundsCtx = null;
-const menuRaycaster = new THREE.Raycaster();
-const menuPointerOrigin = new THREE.Vector3();
-const menuPointerDirection = new THREE.Vector3();
-const menuPanelLocalHit = new THREE.Vector3();
 
 const canvas = document.getElementById('scene');
 const hudEl = document.getElementById('hud');
@@ -342,7 +277,6 @@ function createControllerPointerLine() {
 const vrControllers = [];
 let leftController = null;
 let rightController = null;
-let activeMenuController = null;
 
 for (let i = 0; i < 2; i += 1) {
   const controller = renderer.xr.getController(i);
@@ -364,20 +298,10 @@ for (let i = 0; i < 2; i += 1) {
     if (rightController === controller) {
       rightController = null;
     }
-    if (activeMenuController === controller) {
-      activeMenuController = null;
-    }
+    vrMenu.handleControllerDisconnected(controller);
   });
   controller.addEventListener('selectstart', () => {
-    if (!menuPanelVisible || activeMenuController !== controller) return;
-    const activeIndex = menuHoveredIndex >= 0 ? menuHoveredIndex : menuSelectedIndex;
-    if (activeIndex < 0) return;
-    if (activeIndex >= 0) {
-      menuSelectedIndex = activeIndex;
-      updateMenuPanelTexture();
-    }
-    const entry = menuPanelEntries[activeIndex];
-    activateMenuEntry(entry);
+    vrMenu.handleControllerSelect(controller);
   });
   vrControllers.push(controller);
   scene.add(controller);
@@ -657,93 +581,6 @@ function worldUnitsPerPixelAt(pointWorld, cam, viewportHeightPx) {
   return visibleHeight / Math.max(1, viewportHeightPx);
 }
 
-function buildAsterismsFromFamousStars(stars) {
-  const bySourceId = new Map(
-    stars
-      .filter((s) => typeof s.sourceId === 'string' && s.sourceId.trim())
-      .map((s) => [s.sourceId.trim().toUpperCase(), s]),
-  );
-  const mapped = [];
-  const bySource = new Map();
-
-  for (const def of ASTERISM_DEFS) {
-    const segments = [];
-    const memberStars = [];
-    const seenMemberKeys = new Set();
-    let ok = true;
-    for (const edge of def.edges || []) {
-      const [sourceA, sourceB] = Array.isArray(edge) ? edge : [];
-      const keyA = String(sourceA || '').trim().toUpperCase();
-      const keyB = String(sourceB || '').trim().toUpperCase();
-      const starA = bySourceId.get(keyA);
-      const starB = bySourceId.get(keyB);
-      if (!keyA || !keyB || !starA || !starB) {
-        ok = false;
-        break;
-      }
-      segments.push([starA, starB]);
-      if (!seenMemberKeys.has(keyA)) {
-        memberStars.push(starA);
-        seenMemberKeys.add(keyA);
-      }
-      if (!seenMemberKeys.has(keyB)) {
-        memberStars.push(starB);
-        seenMemberKeys.add(keyB);
-      }
-      const keysA = bySource.get(keyA) || [];
-      if (!keysA.includes(def.key)) keysA.push(def.key);
-      bySource.set(keyA, keysA);
-      const keysB = bySource.get(keyB) || [];
-      if (!keysB.includes(def.key)) keysB.push(def.key);
-      bySource.set(keyB, keysB);
-    }
-    if (!ok || segments.length === 0 || memberStars.length < 2) continue;
-    const label = createTextSprite(def.name, ASTERISM_LABEL_COLOR, ASTERISM_LABEL_OUTLINE);
-    setLabelSpriteScale(label, FAMOUS_LABEL_SCALE_X, LABEL_SCALE_Y);
-    label.visible = false;
-    solarSystemGroup.add(label);
-    mapped.push({ key: def.key, name: def.name, edgeStars: segments, memberStars, label });
-  }
-
-  asterismKeysBySourceId = bySource;
-  return mapped;
-}
-
-function slerpUnitVectors(from, to, t) {
-  const a = from.clone().normalize();
-  const b = to.clone().normalize();
-  const dot = THREE.MathUtils.clamp(a.dot(b), -1.0, 1.0);
-
-  if (dot > 0.9995) {
-    return a.lerp(b, t).normalize();
-  }
-  if (dot < -0.9995) {
-    // Opposite-direction fallback: pick a stable orthogonal axis.
-    const axis = new THREE.Vector3(1, 0, 0).cross(a);
-    if (axis.lengthSq() < 1e-6) axis.set(0, 1, 0).cross(a);
-    axis.normalize();
-    return a.applyAxisAngle(axis, Math.PI * t).normalize();
-  }
-
-  const theta = Math.acos(dot);
-  const sinTheta = Math.sin(theta);
-  const wA = Math.sin((1 - t) * theta) / sinTheta;
-  const wB = Math.sin(t * theta) / sinTheta;
-  return a.multiplyScalar(wA).add(b.multiplyScalar(wB)).normalize();
-}
-
-function sampleGreatCircle(a, b, segments = 48) {
-  const points = [];
-  const from = a.clone().normalize();
-  const to = b.clone().normalize();
-  for (let i = 0; i <= segments; i += 1) {
-    const t = i / segments;
-    const p = slerpUnitVectors(from, to, t).multiplyScalar(SYMBOL_RADIUS - 0.9);
-    points.push(p);
-  }
-  return points;
-}
-
 function createAsterismLineGroup(edgeCount, { color, opacity, lineWidthPx, renderOrder }) {
   const group = new THREE.Group();
   for (let i = 0; i < edgeCount; i += 1) {
@@ -934,216 +771,6 @@ function createVrSplashSprite(text) {
   return sprite;
 }
 
-function updateMenuPanelTexture() {
-  const cnv = menuPanelCanvas;
-  const ctx = menuPanelCtx;
-  const bgColor = MENU_PANEL_COLOR.getStyle ? MENU_PANEL_COLOR.getStyle() : '#030711';
-  const showPersistentSelection = menuPage === 'stars';
-  const title = menuPage === 'stars' ? 'Jump to Star' : (menuPage === 'about' ? 'About' : 'Menu');
-  const helpLines = menuPage === 'root'
-    ? ['Menu: Button', 'Point: Hover item', 'Trigger: Open / Select']
-    : ['Menu: Button to close', 'Trigger: Select'];
-  ctx.fillStyle = bgColor;
-  ctx.fillRect(0, 0, cnv.width, cnv.height);
-  ctx.strokeStyle = MENU_PANEL_BORDER;
-  ctx.lineWidth = 6;
-  ctx.strokeRect(4, 4, cnv.width - 8, cnv.height - 8);
-  ctx.textAlign = 'left';
-  ctx.textBaseline = 'top';
-  ctx.font = 'bold 32px "Noto Sans JP", "Noto Sans", sans-serif';
-  ctx.fillStyle = MENU_PANEL_TEXT_COLOR;
-  ctx.fillText(title, MENU_PANEL_PADDING, MENU_PANEL_PADDING);
-  ctx.font = '20px "Noto Sans JP", "Noto Sans", sans-serif';
-  let y = MENU_PANEL_PADDING + MENU_PANEL_LINE_HEIGHT * 2 + 12;
-  for (const line of helpLines) {
-    ctx.fillText(line, MENU_PANEL_PADDING, y);
-    y += MENU_PANEL_LINE_HEIGHT;
-  }
-
-  ctx.fillStyle = 'rgba(255,255,255,0.06)';
-  ctx.globalCompositeOperation = 'destination-over';
-  ctx.fillRect(MENU_PANEL_PADDING / 2, MENU_PANEL_MENU_START_Y - MENU_PANEL_LINE_HEIGHT / 2, cnv.width - MENU_PANEL_PADDING, MENU_ROW_HEIGHT * menuPanelEntries.length + MENU_PANEL_PADDING / 2);
-  ctx.globalCompositeOperation = 'source-over';
-
-  ctx.font = MENU_ITEM_FONT;
-  let entryY = MENU_PANEL_MENU_START_Y;
-
-  menuPanelEntries.forEach((entry, index) => {
-    if (showPersistentSelection && index === menuSelectedIndex) {
-      ctx.fillStyle = 'rgba(240, 244, 248, 0.24)';
-      ctx.fillRect(MENU_PANEL_PADDING / 2, entryY - 4, cnv.width - MENU_PANEL_PADDING, MENU_ROW_HEIGHT);
-    }
-    if (index === menuHoveredIndex) {
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.95)';
-      ctx.lineWidth = 3;
-      ctx.strokeRect(MENU_PANEL_PADDING / 2 + 2, entryY - 2, cnv.width - MENU_PANEL_PADDING - 4, MENU_ROW_HEIGHT - 4);
-    }
-    ctx.fillStyle = index === menuHoveredIndex ? '#ffffff' : ((showPersistentSelection && index === menuSelectedIndex) ? 'rgba(240,246,250,0.96)' : MENU_PANEL_TEXT_COLOR);
-    const text = entry.label ?? entry.name ?? '';
-    ctx.fillText(text, MENU_PANEL_PADDING, entryY);
-    if (entry.detail) {
-      ctx.font = '18px "Noto Sans JP", "Noto Sans", sans-serif';
-      ctx.fillStyle = index === menuHoveredIndex ? '#ffffff' : ((showPersistentSelection && index === menuSelectedIndex) ? 'rgba(240,246,250,0.92)' : MENU_PANEL_TEXT_MUTED);
-      ctx.fillText(entry.detail, MENU_PANEL_PADDING + 12, entryY + 22);
-      ctx.font = MENU_ITEM_FONT;
-    }
-    entryY += MENU_ROW_HEIGHT;
-  });
-
-  if (menuPanelTexture) {
-    menuPanelTexture.needsUpdate = true;
-  }
-  updatePreviewDisplay();
-}
-
-function buildMenuPanelTexture() {
-  updateMenuPanelTexture();
-  const texture = new THREE.CanvasTexture(menuPanelCanvas);
-  texture.colorSpace = THREE.SRGBColorSpace;
-  texture.needsUpdate = true;
-  return texture;
-}
-
-function buildMenuEntriesForPage(page) {
-  if (page === 'stars') {
-    return MENU_STAR_ENTRIES.map((star) => ({ key: `star:${star.name}`, label: star.name, action: 'star', star }));
-  }
-  if (page === 'about') {
-    return [
-      { key: 'version', label: `Version ${APP_VERSION}`, action: 'none' },
-    ];
-  }
-  return [
-    { key: 'jump', label: 'Jump to Star', action: 'page', page: 'stars' },
-    { key: 'about', label: 'About', action: 'page', page: 'about' },
-  ];
-}
-
-function rebuildMenuEntries(preferredKey = null) {
-  const previousKey = preferredKey ?? menuPanelEntries[menuSelectedIndex]?.key ?? null;
-  menuPanelEntries = buildMenuEntriesForPage(menuPage);
-  if (menuPage === 'stars' && preferredKey == null) {
-    menuSelectedIndex = -1;
-  } else if (menuPanelEntries.length === 0) {
-    menuSelectedIndex = 0;
-  } else {
-    const preferredIndex = previousKey ? menuPanelEntries.findIndex((entry) => entry.key === previousKey) : -1;
-    menuSelectedIndex = preferredIndex >= 0 ? preferredIndex : Math.min(menuSelectedIndex, menuPanelEntries.length - 1);
-  }
-}
-
-function openMenuPage(page, preferredKey = null) {
-  menuPage = page;
-  menuHoveredIndex = -1;
-  rebuildMenuEntries(preferredKey);
-  updateMenuPanelTexture();
-}
-
-function activateMenuEntry(entry) {
-  if (!entry) return;
-  if (entry.action === 'page' && entry.page) {
-    openMenuPage(entry.page);
-    return;
-  }
-  if (entry.action === 'star' && entry.star) {
-    const starObj = famousStarObjects.find((obj) => obj.name === entry.star.name);
-    if (!starObj) return;
-    const selectedIndex = menuPanelEntries.findIndex((candidate) => candidate.key === entry.key);
-    if (selectedIndex >= 0) {
-      menuSelectedIndex = selectedIndex;
-      updateMenuPanelTexture();
-    }
-    starObj.highlightUntilMs = performance.now() + MENU_HIGHLIGHT_DURATION_MS;
-    setStatus(`Selected ${starObj.name}`);
-    updatePreviewDisplay();
-  }
-}
-
-function ensureMenuPanel() {
-  if (menuPanelGroup) return menuPanelGroup;
-  menuPanelTexture = buildMenuPanelTexture();
-  menuPanelMaterial = new THREE.MeshBasicMaterial({
-    map: menuPanelTexture,
-    transparent: true,
-    depthWrite: false,
-    side: THREE.DoubleSide,
-  });
-  const geometry = new THREE.PlaneGeometry(MENU_PANEL_WIDTH, MENU_PANEL_HEIGHT);
-  const panelMesh = new THREE.Mesh(geometry, menuPanelMaterial);
-  panelMesh.renderOrder = 20;
-  const outline = new THREE.Mesh(
-    new THREE.PlaneGeometry(MENU_PANEL_WIDTH + 0.018, MENU_PANEL_HEIGHT + 0.018),
-    new THREE.MeshBasicMaterial({ color: 0x5c8bff, transparent: true, opacity: 0.16, depthWrite: false })
-  );
-  outline.renderOrder = 15;
-  const group = new THREE.Group();
-  group.add(outline);
-  group.add(panelMesh);
-  const pointerMarker = createCircleOutlineSprite('rgba(255, 255, 255, 0.98)');
-  pointerMarker.scale.set(0.028, 0.028, 1.0);
-  pointerMarker.position.set(0, 0, 0.003);
-  pointerMarker.renderOrder = 45;
-  pointerMarker.visible = false;
-  group.add(pointerMarker);
-  group.visible = false;
-  scene.add(group);
-  menuPanelGroup = group;
-  menuPanelMesh = panelMesh;
-  menuPointerMarker = pointerMarker;
-  return group;
-}
-
-function setMenuPanelVisible(visible) {
-  if (visible && !menuPanelGroup) {
-    ensureMenuPanel();
-  }
-  if (!menuPanelGroup) return;
-  if (visible) {
-    openMenuPage('root');
-  } else {
-    menuHoveredIndex = -1;
-    menuSelectedIndex = 0;
-    if (menuPointerMarker) menuPointerMarker.visible = false;
-  }
-  menuPanelVisible = visible;
-  menuPanelGroup.visible = visible;
-  if (visible && renderer.xr.isPresenting && renderer.xr.getCamera()) {
-    updateMenuPanelTransform(renderer.xr.getCamera());
-  }
-  updatePreviewDisplay();
-}
-
-function toggleMenuPanel() {
-  setMenuPanelVisible(!menuPanelVisible);
-}
-
-function updateMenuPanelTransform(xrCam, controller = null) {
-  if (!menuPanelGroup) return;
-  let basePos;
-  let baseQuat;
-  let sideSign = 0;
-  if (xrCam) {
-    basePos = new THREE.Vector3().setFromMatrixPosition(xrCam.matrixWorld);
-    baseQuat = new THREE.Quaternion().setFromRotationMatrix(xrCam.matrixWorld);
-  } else if (controller) {
-    basePos = new THREE.Vector3().setFromMatrixPosition(controller.matrixWorld);
-    baseQuat = new THREE.Quaternion().setFromRotationMatrix(controller.matrixWorld);
-  } else {
-    return;
-  }
-
-  const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(baseQuat).normalize();
-  const up = new THREE.Vector3(0, 1, 0).applyQuaternion(baseQuat).normalize();
-  const right = new THREE.Vector3(1, 0, 0).applyQuaternion(baseQuat).normalize();
-  if (controller) {
-    sideSign = controller === leftController ? -1 : (controller === rightController ? 1 : 0);
-  }
-  menuPanelGroup.position.copy(basePos)
-    .addScaledVector(forward, MENU_PANEL_FORWARD_DISTANCE)
-    .addScaledVector(up, MENU_PANEL_VERTICAL_OFFSET)
-    .addScaledVector(right, MENU_PANEL_SIDE_OFFSET * sideSign);
-  menuPanelGroup.quaternion.copy(baseQuat);
-}
 
 function getCurrentForwardDirection() {
   const cam = renderer.xr.isPresenting ? renderer.xr.getCamera() : camera;
@@ -1212,7 +839,7 @@ function updateDynamicArc() {
     currentArc = null;
   }
 
-  if (!menuPanelVisible || !selectedStarObject) return;
+  if (!vrMenu.isVisible() || !selectedStarObject) return;
 
   const forward = getCurrentForwardDirection();
   const targetDir = selectedStarObject.worldDirection.clone().normalize();
@@ -1224,23 +851,9 @@ function updateDynamicArc() {
   }
 }
 
-function getPreviewStarObject() {
-  if (!menuPanelVisible || menuPage !== 'stars') {
-    return null;
-  }
-  const activeIndex = menuSelectedIndex >= 0
-    ? menuSelectedIndex
-    : ((renderer.xr.isPresenting && menuHoveredIndex >= 0) ? menuHoveredIndex : -1);
-  const selectedEntry = menuPanelEntries[activeIndex];
-  if (!selectedEntry || selectedEntry.action !== 'star' || !selectedEntry.star) {
-    return null;
-  }
-  return famousStarObjects.find((obj) => obj.name === selectedEntry.star.name) || null;
-}
-
 function updatePreviewDisplay() {
   clearPreviewDisplay();
-  selectedStarObject = getPreviewStarObject();
+  selectedStarObject = vrMenu.getPreviewStarObject();
   const starObj = selectedStarObject;
   if (!starObj) return;
 
@@ -1985,7 +1598,26 @@ const asterismOnlyStarObjects = ASTERISM_STARS
   });
 const asterismStarObjects = [...famousStarObjects, ...asterismOnlyStarObjects];
 const hoverSelectableStarObjects = asterismStarObjects;
-asterismObjects = buildAsterismsFromFamousStars(asterismStarObjects);
+const vrMenu = createVrMenu({
+  scene,
+  renderer,
+  appVersion: APP_VERSION,
+  famousStarObjects,
+  setStatus,
+  createCircleOutlineSprite,
+  onStateChange: () => updatePreviewDisplay(),
+});
+({ asterismObjects, asterismKeysBySourceId } = buildAsterismsFromStars({
+  definitions: ASTERISM_DEFS,
+  stars: asterismStarObjects,
+  createLabel: (def) => {
+    const label = createTextSprite(def.name, ASTERISM_LABEL_COLOR, ASTERISM_LABEL_OUTLINE);
+    setLabelSpriteScale(label, FAMOUS_LABEL_SCALE_X, LABEL_SCALE_Y);
+    label.visible = false;
+    solarSystemGroup.add(label);
+    return label;
+  },
+}));
 
 const zenithMarker = createCrossMarkerSprite('rgba(210, 244, 255, 0.96)');
 zenithMarker.scale.set(4.2, 4.2, 1.0);
@@ -2364,7 +1996,7 @@ function updateFamousStarHoverLabels(xrFrame) {
     return;
   }
   const nowMs = performance.now();
-  const shouldKeepVisible = (star) => star.highlightUntilMs > nowMs || (menuPanelVisible && star === selectedStarObject);
+  const shouldKeepVisible = (star) => star.highlightUntilMs > nowMs || (vrMenu.isVisible() && star === selectedStarObject);
   if (!renderer.xr.isPresenting) {
     for (const star of famousStarObjects) {
       star.label.visible = shouldKeepVisible(star);
@@ -2564,125 +2196,8 @@ function safeCall(context, fn) {
   }
 }
 
-function processMenuButtonInput(xrFrame) {
-  if (!renderer.xr.isPresenting || !session) return;
-  const sources = session.inputSources;
-  for (const src of sources) {
-    if (src.handedness !== 'left' && src.handedness !== 'right') continue;
-    const controller = src.handedness === 'left' ? leftController : rightController;
-    if (!controller) continue;
-
-    const gp = src.gamepad;
-    if (!gp) continue;
-
-    let isThisControllerActive = (activeMenuController === controller);
-
-    if (gp.buttons) {
-      let state = menuButtonStates.get(src);
-      if (!state || state.length !== gp.buttons.length) {
-        state = new Array(gp.buttons.length).fill(false);
-      }
-      for (let idx = 0; idx < gp.buttons.length; idx += 1) {
-        const button = gp.buttons[idx];
-        if (!button) continue;
-        const wasPressed = state[idx];
-        const isPressed = Boolean(button.pressed);
-
-        if (isPressed && !wasPressed) {
-          if (idx > 2) {
-            // Menu button pressed
-            if (menuPanelVisible && isThisControllerActive) {
-              setMenuPanelVisible(false);
-              activeMenuController = null;
-            } else {
-              activeMenuController = controller;
-              setMenuPanelVisible(true);
-            }
-          }
-        }
-        state[idx] = isPressed;
-      }
-      menuButtonStates.set(src, state);
-    }
-
-    if (menuPanelVisible && isThisControllerActive && gp.axes) {
-      const nowMs = performance.now();
-      if (nowMs - thumbstickDebounceTimer > 250) {
-        let yAxis = 0;
-        if (gp.axes.length >= 4) {
-          yAxis = gp.axes[3];
-        } else if (gp.axes.length >= 2) {
-          yAxis = gp.axes[1];
-        }
-
-        if (yAxis > 0.5) {
-          moveMenuSelection(1);
-          thumbstickDebounceTimer = nowMs;
-        } else if (yAxis < -0.5) {
-          moveMenuSelection(-1);
-          thumbstickDebounceTimer = nowMs;
-        }
-      }
-    }
-  }
-}
 function formatBytesMiB(bytes) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MiB`;
-}
-
-function getMenuPointerHitFromController(controller) {
-  if (!menuPanelVisible || !menuPanelMesh || !controller) return null;
-  menuPointerOrigin.setFromMatrixPosition(controller.matrixWorld);
-  menuPointerDirection.set(0, 0, -1).applyQuaternion(
-    new THREE.Quaternion().setFromRotationMatrix(controller.matrixWorld)
-  ).normalize();
-  menuRaycaster.set(menuPointerOrigin, menuPointerDirection);
-  const hits = menuRaycaster.intersectObject(menuPanelMesh, false);
-  const hit = hits[0];
-  if (!hit) return null;
-
-  menuPanelLocalHit.copy(hit.point);
-  menuPanelMesh.worldToLocal(menuPanelLocalHit);
-  const yPx = (0.5 - (menuPanelLocalHit.y / MENU_PANEL_HEIGHT)) * MENU_PANEL_CANVAS_HEIGHT;
-  const top = MENU_PANEL_MENU_START_Y - MENU_PANEL_LINE_HEIGHT / 2;
-  const bottom = top + MENU_ROW_HEIGHT * menuPanelEntries.length + MENU_PANEL_PADDING / 2;
-  const withinY = yPx >= top && yPx <= bottom;
-  let index = -1;
-  if (withinY) {
-    const candidate = Math.floor((yPx - MENU_PANEL_MENU_START_Y) / MENU_ROW_HEIGHT);
-    index = candidate >= 0 && candidate < menuPanelEntries.length ? candidate : -1;
-  }
-  return { hitPointWorld: hit.point.clone(), localHit: menuPanelLocalHit.clone(), index };
-}
-
-function updateMenuPointerHover() {
-  if (!menuPanelVisible || !renderer.xr.isPresenting || !activeMenuController) return;
-  const pointerHit = getMenuPointerHitFromController(activeMenuController);
-  const hoveredIndex = pointerHit?.index ?? -1;
-  if (menuPointerMarker) {
-    if (pointerHit?.localHit) {
-      menuPointerMarker.visible = true;
-      menuPointerMarker.position.set(pointerHit.localHit.x, pointerHit.localHit.y, 0.003);
-    } else {
-      menuPointerMarker.visible = false;
-    }
-  }
-  if (hoveredIndex !== menuHoveredIndex) {
-    menuHoveredIndex = hoveredIndex;
-    updateMenuPanelTexture();
-    updatePreviewDisplay();
-  }
-}
-
-function moveMenuSelection(delta) {
-  if (menuPanelEntries.length === 0) return;
-  if (menuSelectedIndex < 0) {
-    menuSelectedIndex = delta >= 0 ? 0 : menuPanelEntries.length - 1;
-  } else {
-    menuSelectedIndex = (menuSelectedIndex + delta + menuPanelEntries.length) % menuPanelEntries.length;
-  }
-  updateMenuPanelTexture();
-  updatePreviewDisplay();
 }
 
 function hasAllRequestedStarDataLoaded() {
@@ -2835,8 +2350,7 @@ async function prepareVrButton() {
         setStatus(desktopModeLabel());
         pendingExtendedStarsSplash = false;
         clearVrSplash();
-        setMenuPanelVisible(false);
-        menuButtonStates = new WeakMap();
+        vrMenu.setVisible(false);
       });
     } catch (error) {
       setStatus(`Failed to start VR (${error.message})`);
@@ -2860,17 +2374,17 @@ window.addEventListener('resize', onResize);
 window.addEventListener('keydown', (event) => {
   if (event.key === 'm' || event.key === 'M') {
     event.preventDefault();
-    toggleMenuPanel();
-  } else if (menuPanelVisible) {
+    vrMenu.toggle(camera);
+  } else if (vrMenu.isVisible()) {
     if (event.key === 'ArrowUp') {
       event.preventDefault();
-      moveMenuSelection(-1);
+      vrMenu.moveSelection(-1);
     } else if (event.key === 'ArrowDown') {
       event.preventDefault();
-      moveMenuSelection(1);
+      vrMenu.moveSelection(1);
     } else if (event.key === 'Enter') {
       event.preventDefault();
-      activateMenuEntry(menuPanelEntries[menuSelectedIndex]);
+      vrMenu.activateCurrent();
     }
   }
 });
@@ -2930,7 +2444,7 @@ renderer.setAnimationLoop((_time, xrFrame) => {
       forceLabelRelayout = true;
     }
 
-    if (menuPanelVisible && selectedStarObject) {
+    if (vrMenu.isVisible() && selectedStarObject) {
       safeCall('updateDynamicArc', () => updateDynamicArc());
     }
 
@@ -2943,8 +2457,8 @@ renderer.setAnimationLoop((_time, xrFrame) => {
       dsoGroup.position.copy(camera.position);
       solarSystemGroup.position.copy(camera.position);
       horizonGroup.position.copy(camera.position);
-      if (menuPanelVisible) {
-        safeCall('updateMenuPanelTransformDesktop', () => updateMenuPanelTransform(camera));
+      if (vrMenu.isVisible()) {
+        safeCall('updateMenuPanelTransformDesktop', () => vrMenu.updateTransform(camera, leftController, rightController));
       }
     }
 
@@ -2958,10 +2472,10 @@ renderer.setAnimationLoop((_time, xrFrame) => {
       solarSystemGroup.position.copy(sky.position);
       horizonGroup.position.copy(sky.position);
 
-      safeCall('processMenuButtonInput', () => processMenuButtonInput(xrFrame));
-      if (menuPanelVisible && xrCam) {
-        safeCall('updateMenuPanelTransformXR', () => updateMenuPanelTransform(xrCam, activeMenuController));
-        safeCall('updateMenuPointerHover', () => updateMenuPointerHover());
+      safeCall('processMenuButtonInput', () => vrMenu.processGamepadInput({ session, leftController, rightController, xrCamera: xrCam }));
+      if (vrMenu.isVisible() && xrCam) {
+        safeCall('updateMenuPanelTransformXR', () => vrMenu.updateTransform(xrCam, leftController, rightController));
+        safeCall('updateMenuPointerHover', () => vrMenu.updatePointerHover());
       }
 
       if (vrSplashSprite) {
