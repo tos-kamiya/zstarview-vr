@@ -162,3 +162,10 @@ Rule:
 - **Code Cleanup**:
   - Removed dead preview and label-layout constants left behind by earlier interaction changes.
   - Removed unused label collision/layout scaffolding that was no longer referenced by the simplified layout path.
+
+### v0.9.0 (2026-03-08)
+
+- **VR Menu Display Toggles**:
+  - Added a `Display Options` page to the VR menu.
+  - Added `Asterisms` and `DSO` toggles with `☑` / `☐` state indicators.
+  - Wired toggles to runtime visibility so hidden layers also suppress their hover labels and highlight overlays.

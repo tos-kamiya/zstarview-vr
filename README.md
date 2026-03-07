@@ -87,8 +87,12 @@ If `country` is also specified, city lookup is filtered by that country code (IS
 The VR variant keeps the existing interaction model ("the user turns to face the target") and does not forcibly rotate the sky.
 
 - **Entry point**: Press the Menu button on either VR controller (or `M` on desktop) to open the menu.
-- **Top level**: The menu currently contains `Jump to Star` and `About`.
+- **Top level**: The menu currently contains `Jump to Star`, `Display Options`, and `About`.
 - **Hover and select**: In VR, point at a menu item to hover it, then press the trigger to activate it. Hover and selected states are drawn differently.
+- **Display Options**:
+  - `Asterisms` toggles the ambient/highlighted asterism overlay.
+  - `DSO` toggles deep-sky-object markers and labels.
+  - Toggle items show their current state with `☑` / `☐`.
 - **Jump to Star behavior**:
   - When the star list first opens, no star is selected yet.
   - While no star is selected, the arc and target marker follow the star currently hovered in the menu.
