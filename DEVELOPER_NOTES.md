@@ -138,8 +138,8 @@ Rule:
 
 - **Jump to Named Star (VR)**:
   - Added a VR menu panel accessible via the controller Menu button (or 'M' key on desktop).
-  - Menu displays a list of bright named stars, vertically scrollable via the thumbstick (or arrow keys).
-  - When navigating the menu, a dynamic great-circle arc is rendered from the center of the user's field of view to the highlighted star.
-  - The target star is marked with a glowing circle.
-  - The arc and marker persist dynamically as the user looks around, until the menu is closed.
-  - The menu panel is positioned and rotated naturally relative to the active controller (left or right).
+  - Evolved the panel into a two-level VR menu with `Jump to Star` and `About`.
+  - In VR, menu items are hovered by pointer and activated by trigger; the Menu button is reserved for showing/hiding the panel.
+  - `Jump to Star` now distinguishes hovered preview from trigger-confirmed selection. Hover drives the preview only before the first star is confirmed; confirmed selection persists until the menu closes.
+  - The target star is marked with a glowing circle, and a dynamic great-circle arc is rendered from the center of the user's field of view.
+  - The menu panel appears offset to the left or right of the user's forward view depending on which controller opened it, and shows a visible pointer/menu intersection marker.

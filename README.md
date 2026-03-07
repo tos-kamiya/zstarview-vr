@@ -71,7 +71,7 @@ Major cities (about 20):
    - Press `Enter VR`.
    - A location splash appears in front of the user for about 3 seconds.
 4. While immersed:
-   - On Quest 3, the Menu button on either controller toggles a world-anchored named-star menu panel that stays near your hand/head. Press the Menu button again to close it; the panel also closes automatically when you exit VR.
+   - On Quest 3, the Menu button on either controller toggles a gray world-anchored menu panel. The panel appears slightly to the left or right of your forward view depending on which controller opened it. Press the Menu button again to close it; the panel also closes automatically when you exit VR.
    - Desktop users may toggle the same panel with the `M` key for preview/testing without entering a headset.
 Location resolution priority:
 
@@ -82,14 +82,18 @@ Location resolution priority:
 If `city` is not found (or city index loading fails), the app falls back to default (`Tokyo`) and explicitly shows the fallback reason in status/splash text.
 If `country` is also specified, city lookup is filtered by that country code (ISO 3166-1 alpha-2, e.g. `JP`, `US`).
 
-## Feature: Jump to Named Star (VR)
+## Feature: VR Menu / Jump to Star
 
 The VR variant keeps the existing interaction model ("the user turns to face the target") and does not forcibly rotate the sky.
 
-- **Entry point**: Press the Menu button on either VR controller (or 'M' key on desktop) to open the star menu.
-- **Navigation**: Use the controller thumbstick (Up/Down) or arrow keys on desktop to browse the list of famous stars.
-- **Preview**: While browsing, a dynamic great-circle arc is drawn from the center of your view to the currently highlighted star. The target star is marked with a glowing circle.
-- **Exit Menu**: Press the Menu button again (or Enter on desktop) to close the menu.
+- **Entry point**: Press the Menu button on either VR controller (or `M` on desktop) to open the menu.
+- **Top level**: The menu currently contains `Jump to Star` and `About`.
+- **Hover and select**: In VR, point at a menu item to hover it, then press the trigger to activate it. Hover and selected states are drawn differently.
+- **Jump to Star behavior**:
+  - When the star list first opens, no star is selected yet.
+  - While no star is selected, the arc and target marker follow the star currently hovered in the menu.
+  - After pressing the trigger on a star, that star becomes the active selection and the arc/marker stay locked to it until the menu is closed.
+- **Exit Menu**: Press the Menu button again to close the menu. Closing the menu clears the current Jump to Star selection.
 
 ## Feature: Asterism Overlay (Imported from zstarview)
 
