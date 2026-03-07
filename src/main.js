@@ -108,26 +108,29 @@ function buildLabelLayoutOffsets() {
 const LABEL_LAYOUT_OFFSETS = buildLabelLayoutOffsets();
 
 const ASTERISM_DEFS = [
-  { key: 'winter_triangle', name: 'Winter Triangle', season: 'winter', path: ['HIP32349', 'HIP37279', 'HIP27989', 'HIP32349'] },
-  { key: 'orions_belt', name: "Orion's Belt", season: 'winter', path: ['HIP26727', 'HIP26311', 'HIP25930'] },
-  { key: 'orions_sword', name: "Orion's Sword", season: 'winter', path: ['HIP26311', 'HIP26241', 'HIP27366'] },
-  { key: 'winter_hexagon', name: 'Winter Hexagon', season: 'winter', path: ['HIP24608', 'HIP21421', 'HIP24436', 'HIP32349', 'HIP37279', 'HIP37826', 'HIP24608'] },
-  { key: 'hyades_v', name: 'Hyades V', season: 'winter', path: ['HIP20205', 'HIP21421', 'HIP20889', 'HIP20455', 'HIP20205'] },
-  { key: 'big_dipper', name: 'Big Dipper', season: 'spring', path: ['HIP54061', 'HIP53910', 'HIP58001', 'HIP59774', 'HIP62956', 'HIP65378', 'HIP67301'] },
-  { key: 'little_dipper', name: 'Little Dipper', season: 'spring', path: ['HIP11767', 'HIP85822', 'HIP82080', 'HIP77055', 'HIP74793', 'HIP75097', 'HIP72607', 'HIP77055'] },
-  { key: 'spring_triangle', name: 'Spring Triangle', season: 'spring', path: ['HIP69673', 'HIP65474', 'HIP57632', 'HIP69673'] },
-  { key: 'arc_to_arcturus', name: 'Arc to Arcturus', season: 'spring', path: ['HIP67301', 'HIP65378', 'HIP62956', 'HIP69673'] },
-  { key: 'leo_sickle', name: 'Leo Sickle', season: 'spring', path: ['HIP49669', 'HIP50583', 'HIP50335', 'HIP48455', 'HIP47908', 'HIP49669'] },
-  { key: 'summer_triangle', name: 'Summer Triangle', season: 'summer', path: ['HIP91262', 'HIP102098', 'HIP97649', 'HIP91262'] },
-  { key: 'northern_cross', name: 'Northern Cross', season: 'summer', path: ['HIP102098', 'HIP100453', 'HIP95947', 'HIP100453', 'HIP97165', 'HIP100453', 'HIP102488'] },
-  { key: 'teapot', name: 'Teapot', season: 'summer', path: ['HIP88635', 'HIP90185', 'HIP93506', 'HIP92855', 'HIP92041', 'HIP90496', 'HIP89931', 'HIP88635'] },
-  { key: 'keystone', name: 'Keystone', season: 'summer', path: ['HIP83207', 'HIP81693', 'HIP84379', 'HIP86974', 'HIP83207'] },
-  { key: 'coathanger', name: 'Coathanger', season: 'summer', path: ['HIP94703', 'HIP95498', 'HIP96275', 'HIP96757', 'HIP97365', 'HIP96275', 'HIP96837', 'HIP96516'] },
-  { key: 'great_square_of_pegasus', name: 'Great Square of Pegasus', season: 'autumn', path: ['HIP113963', 'HIP113881', 'HIP677', 'HIP1067', 'HIP113963'] },
-  { key: 'circlet_of_pisces', name: 'Circlet of Pisces', season: 'autumn', path: ['HIP7097', 'HIP8198', 'HIP9487', 'HIP113889', 'HIP109427', 'HIP7097'] },
-  { key: 'water_jar_of_aquarius', name: 'Water Jar of Aquarius', season: 'autumn', path: ['HIP106278', 'HIP109074', 'HIP110395', 'HIP113136', 'HIP110003', 'HIP109074'] },
-  { key: 'andromeda_chain', name: 'Andromeda Chain', season: 'autumn', path: ['HIP677', 'HIP5447', 'HIP9640'] },
-  { key: 'autumn_triangle', name: 'Autumn Triangle', season: 'autumn', path: ['HIP113963', 'HIP9884', 'HIP113368', 'HIP113963'] },
+  { key: 'winter_triangle', name: 'Winter Triangle', season: 'winter', edges: [['HIP32349', 'HIP37279'], ['HIP37279', 'HIP27989'], ['HIP27989', 'HIP32349']] },
+  { key: 'orions_belt', name: "Orion's Belt", season: 'winter', edges: [['HIP26727', 'HIP26311'], ['HIP26311', 'HIP25930']] },
+  { key: 'winter_hexagon', name: 'Winter Hexagon', season: 'winter', edges: [['HIP24608', 'HIP21421'], ['HIP21421', 'HIP24436'], ['HIP24436', 'HIP32349'], ['HIP32349', 'HIP37279'], ['HIP37279', 'HIP37826'], ['HIP37826', 'HIP24608']] },
+  { key: 'southern_cross', name: 'Southern Cross', season: 'winter', edges: [['HIP61084', 'HIP60718'], ['HIP59747', 'HIP62434']] },
+  { key: 'southern_pointers', name: 'Southern Pointers', season: 'winter', edges: [['HIP71683', 'HIP68702']] },
+  { key: 'diamond_cross', name: 'Diamond Cross', season: 'winter', edges: [['HIP45238', 'HIP52419'], ['HIP48002', 'HIP50099']] },
+  { key: 'false_cross', name: 'False Cross', season: 'winter', edges: [['HIP42913', 'HIP45556'], ['HIP45941', 'HIP41037']] },
+  { key: 'big_dipper', name: 'Big Dipper', season: 'spring', edges: [['HIP54061', 'HIP53910'], ['HIP53910', 'HIP58001'], ['HIP58001', 'HIP59774'], ['HIP59774', 'HIP62956'], ['HIP62956', 'HIP65378'], ['HIP65378', 'HIP67301']] },
+  { key: 'little_dipper', name: 'Little Dipper', season: 'spring', edges: [['HIP11767', 'HIP85822'], ['HIP85822', 'HIP82080'], ['HIP82080', 'HIP77055'], ['HIP77055', 'HIP72607'], ['HIP72607', 'HIP75097'], ['HIP75097', 'HIP79822'], ['HIP79822', 'HIP77055']] },
+  { key: 'spring_triangle', name: 'Spring Triangle', season: 'spring', edges: [['HIP69673', 'HIP65474'], ['HIP65474', 'HIP57632'], ['HIP57632', 'HIP69673']] },
+  { key: 'arc_to_arcturus', name: 'Arc to Arcturus', season: 'spring', edges: [['HIP67301', 'HIP69673'], ['HIP69673', 'HIP65474']] },
+  { key: 'leo_sickle', name: 'Leo Sickle', season: 'spring', edges: [['HIP49669', 'HIP49583'], ['HIP49583', 'HIP50583'], ['HIP50583', 'HIP50335'], ['HIP50335', 'HIP48455'], ['HIP48455', 'HIP47908']] },
+  { key: 'southern_triangle', name: 'Southern Triangle', season: 'spring', edges: [['HIP74946', 'HIP82273'], ['HIP82273', 'HIP77952'], ['HIP77952', 'HIP74946']] },
+  { key: 'summer_triangle', name: 'Summer Triangle', season: 'summer', edges: [['HIP91262', 'HIP102098'], ['HIP102098', 'HIP97649'], ['HIP97649', 'HIP91262']] },
+  { key: 'northern_cross', name: 'Northern Cross', season: 'summer', edges: [['HIP102098', 'HIP100453'], ['HIP100453', 'HIP95947'], ['HIP100453', 'HIP97165'], ['HIP100453', 'HIP102488']] },
+  { key: 'teapot', name: 'Teapot', season: 'summer', edges: [['HIP93864', 'HIP92855'], ['HIP93864', 'HIP93506'], ['HIP93506', 'HIP92104'], ['HIP92104', 'HIP92855'], ['HIP92104', 'HIP90496'], ['HIP92855', 'HIP89931'], ['HIP90496', 'HIP89931'], ['HIP89931', 'HIP88635'], ['HIP88635', 'HIP90185'], ['HIP90185', 'HIP89931'], ['HIP93506', 'HIP90185']] },
+  { key: 'keystone', name: 'Keystone', season: 'summer', edges: [['HIP84380', 'HIP81833'], ['HIP81833', 'HIP81693'], ['HIP81693', 'HIP83207'], ['HIP83207', 'HIP84380']] },
+  { key: 'great_square_of_pegasus', name: 'Great Square of Pegasus', season: 'autumn', edges: [['HIP113963', 'HIP113881'], ['HIP113881', 'HIP677'], ['HIP677', 'HIP1067'], ['HIP1067', 'HIP113963']] },
+  { key: 'circlet_of_pisces', name: 'Circlet of Pisces', season: 'autumn', edges: [['HIP114971', 'HIP115227'], ['HIP115227', 'HIP115830'], ['HIP115830', 'HIP116771'], ['HIP116771', 'HIP117245'], ['HIP117245', 'HIP116928'], ['HIP116928', 'HIP115738'], ['HIP115738', 'HIP114971']] },
+  { key: 'water_jar_of_aquarius', name: 'Water Jar of Aquarius', season: 'autumn', edges: [['HIP110960', 'HIP111497'], ['HIP110960', 'HIP110395'], ['HIP110960', 'HIP110672']] },
+  { key: 'cassiopeia_w', name: 'Cassiopeia W', season: 'autumn', edges: [['HIP746', 'HIP3179'], ['HIP3179', 'HIP4427'], ['HIP4427', 'HIP6686'], ['HIP6686', 'HIP8886']] },
+  { key: 'house_of_cepheus', name: 'House of Cepheus', season: 'autumn', edges: [['HIP109492', 'HIP105199'], ['HIP105199', 'HIP106032'], ['HIP106032', 'HIP116727'], ['HIP116727', 'HIP112724'], ['HIP112724', 'HIP109492'], ['HIP106032', 'HIP112724']] },
+  { key: 'jobs_coffin', name: "Job's Coffin", season: 'autumn', edges: [['HIP101769', 'HIP102281'], ['HIP102281', 'HIP102532'], ['HIP102532', 'HIP101958'], ['HIP101958', 'HIP101769'], ['HIP101769', 'HIP101421']] },
 ];
 
 const menuPanelCanvas = document.createElement('canvas');
@@ -639,26 +642,42 @@ function buildAsterismsFromFamousStars(stars) {
   const bySource = new Map();
 
   for (const def of ASTERISM_DEFS) {
-    const points = [];
+    const segments = [];
+    const memberStars = [];
+    const seenMemberKeys = new Set();
     let ok = true;
-    for (const sourceId of def.path) {
-      const key = String(sourceId || '').trim().toUpperCase();
-      const star = bySourceId.get(key);
-      if (!star) {
+    for (const edge of def.edges || []) {
+      const [sourceA, sourceB] = Array.isArray(edge) ? edge : [];
+      const keyA = String(sourceA || '').trim().toUpperCase();
+      const keyB = String(sourceB || '').trim().toUpperCase();
+      const starA = bySourceId.get(keyA);
+      const starB = bySourceId.get(keyB);
+      if (!keyA || !keyB || !starA || !starB) {
         ok = false;
         break;
       }
-      points.push(star);
-      const keys = bySource.get(key) || [];
-      if (!keys.includes(def.key)) keys.push(def.key);
-      bySource.set(key, keys);
+      segments.push([starA, starB]);
+      if (!seenMemberKeys.has(keyA)) {
+        memberStars.push(starA);
+        seenMemberKeys.add(keyA);
+      }
+      if (!seenMemberKeys.has(keyB)) {
+        memberStars.push(starB);
+        seenMemberKeys.add(keyB);
+      }
+      const keysA = bySource.get(keyA) || [];
+      if (!keysA.includes(def.key)) keysA.push(def.key);
+      bySource.set(keyA, keysA);
+      const keysB = bySource.get(keyB) || [];
+      if (!keysB.includes(def.key)) keysB.push(def.key);
+      bySource.set(keyB, keysB);
     }
-    if (!ok || points.length < 2) continue;
+    if (!ok || segments.length === 0 || memberStars.length < 2) continue;
     const label = createTextSprite(def.name, ASTERISM_LABEL_COLOR, ASTERISM_LABEL_OUTLINE);
     setLabelSpriteScale(label, FAMOUS_LABEL_SCALE_X, LABEL_SCALE_Y);
     label.visible = false;
     solarSystemGroup.add(label);
-    mapped.push({ key: def.key, name: def.name, pathStars: points, label });
+    mapped.push({ key: def.key, name: def.name, edgeStars: segments, memberStars, label });
   }
 
   asterismKeysBySourceId = bySource;
@@ -710,7 +729,7 @@ function setLabelAnchor(sprite, position) {
 }
 
 function refreshAsterismOverlay(asterism) {
-  if (!asterism || !Array.isArray(asterism.pathStars) || asterism.pathStars.length < 2) {
+  if (!asterism || !Array.isArray(asterism.edgeStars) || asterism.edgeStars.length === 0) {
     if (activeAsterism?.lineGroup) {
       activeAsterism.lineGroup.visible = false;
     }
@@ -719,7 +738,7 @@ function refreshAsterismOverlay(asterism) {
 
   if (!asterism.lineGroup) {
     const group = new THREE.Group();
-    for (let i = 0; i < asterism.pathStars.length - 1; i += 1) {
+    for (let i = 0; i < asterism.edgeStars.length; i += 1) {
       const geometry = new THREE.BufferGeometry();
       const material = new THREE.LineBasicMaterial({
         color: ASTERISM_LINE_COLOR,
@@ -736,9 +755,8 @@ function refreshAsterismOverlay(asterism) {
     solarSystemGroup.add(group);
   }
 
-  for (let i = 0; i < asterism.pathStars.length - 1; i += 1) {
-    const starA = asterism.pathStars[i];
-    const starB = asterism.pathStars[i + 1];
+  for (let i = 0; i < asterism.edgeStars.length; i += 1) {
+    const [starA, starB] = asterism.edgeStars[i];
     const line = asterism.lineGroup.children[i];
     if (!line || !line.geometry || !starA?.worldDirection || !starB?.worldDirection) continue;
     line.geometry.setFromPoints(sampleGreatCircle(starA.worldDirection, starB.worldDirection));
@@ -2230,7 +2248,7 @@ function updateAsterismHoverOverlay() {
   const slot = Math.floor(performance.now() / ASTERISM_ROTATE_SLOT_MS);
   const selectedKey = keys[slot % keys.length];
   const selected = asterismObjects.find((a) => a.key === selectedKey);
-  if (!selected || !Array.isArray(selected.pathStars) || selected.pathStars.length < 2) {
+  if (!selected || !Array.isArray(selected.memberStars) || selected.memberStars.length < 2) {
     activeAsterism = null;
     return;
   }
@@ -2240,12 +2258,12 @@ function updateAsterismHoverOverlay() {
   selected.label.visible = true;
 
   const center = new THREE.Vector3();
-  for (const star of selected.pathStars) {
+  for (const star of selected.memberStars) {
     if (!star?.worldDirection) continue;
     center.add(star.worldDirection);
   }
   if (center.lengthSq() < 1e-8) return;
-  center.multiplyScalar(1 / selected.pathStars.length).normalize();
+  center.multiplyScalar(1 / selected.memberStars.length).normalize();
   setLabelAnchor(selected.label, center.multiplyScalar(SYMBOL_RADIUS + 0.7));
 }
 

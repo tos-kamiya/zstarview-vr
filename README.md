@@ -99,10 +99,10 @@ The VR variant keeps the existing interaction model ("the user turns to face the
 
 Imported asterisms:
 
-- Winter: `Winter Triangle`, `Orion's Belt`, `Orion's Sword`, `Winter Hexagon`, `Hyades V`
-- Spring: `Big Dipper`, `Little Dipper`, `Spring Triangle`, `Arc to Arcturus`, `Leo Sickle`
-- Summer: `Summer Triangle`, `Northern Cross`, `Teapot`, `Keystone`, `Coathanger`
-- Autumn: `Great Square of Pegasus`, `Circlet of Pisces`, `Water Jar of Aquarius`, `Andromeda Chain`, `Autumn Triangle`
+- Winter: `Winter Triangle`, `Orion's Belt`, `Winter Hexagon`, `Southern Cross`, `Southern Pointers`, `Diamond Cross`, `False Cross`
+- Spring: `Big Dipper`, `Little Dipper`, `Spring Triangle`, `Arc to Arcturus`, `Leo Sickle`, `Southern Triangle`
+- Summer: `Summer Triangle`, `Northern Cross`, `Teapot`, `Keystone`
+- Autumn: `Great Square of Pegasus`, `Circlet of Pisces`, `Water Jar of Aquarius`, `Cassiopeia W`, `House of Cepheus`, `Job's Coffin`
 
 ## Usage (Desktop Mode)
 

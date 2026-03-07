@@ -102,10 +102,10 @@ VR版では既存の操作思想（ユーザー自身が向きを変える）を
 
 取り込み済みアステリズム:
 
-- 冬: `Winter Triangle`（冬の大三角）, `Orion's Belt`（オリオンの三ツ星）, `Orion's Sword`（オリオンの剣）, `Winter Hexagon`（冬のダイヤモンド）, `Hyades V`（ヒアデスのV字）
-- 春: `Big Dipper`（北斗七星）, `Little Dipper`（こぐま座のひしゃく）, `Spring Triangle`（春の大三角）, `Arc to Arcturus`（アルクトゥールスへの弧）, `Leo Sickle`（しし座の鎌）
-- 夏: `Summer Triangle`（夏の大三角）, `Northern Cross`（北十字）, `Teapot`（ティーポット）, `Keystone`（ヘルクレスの要石）, `Coathanger`（コートハンガー）
-- 秋: `Great Square of Pegasus`（ペガススの四辺形）, `Circlet of Pisces`（うお座の環）, `Water Jar of Aquarius`（みずがめ座の水がめ）, `Andromeda Chain`（アンドロメダの鎖）, `Autumn Triangle`（秋の大三角）
+- 冬: `Winter Triangle`（冬の大三角）, `Orion's Belt`（オリオンの三ツ星）, `Winter Hexagon`（冬のダイヤモンド）, `Southern Cross`（南十字）, `Southern Pointers`（南十字のポインター）, `Diamond Cross`（ダイヤモンドクロス）, `False Cross`（偽南十字）
+- 春: `Big Dipper`（北斗七星）, `Little Dipper`（こぐま座のひしゃく）, `Spring Triangle`（春の大三角）, `Arc to Arcturus`（アルクトゥールスへの弧）, `Leo Sickle`（しし座の鎌）, `Southern Triangle`（南の三角）
+- 夏: `Summer Triangle`（夏の大三角）, `Northern Cross`（北十字）, `Teapot`（ティーポット）, `Keystone`（ヘルクレスの要石）
+- 秋: `Great Square of Pegasus`（ペガススの四辺形）, `Circlet of Pisces`（うお座の環）, `Water Jar of Aquarius`（みずがめ座の水がめ）, `Cassiopeia W`（カシオペヤのW）, `House of Cepheus`（ケフェウスの家）, `Job's Coffin`（ヨブの棺）
 
 ## 使い方（デスクトップモード）
 
