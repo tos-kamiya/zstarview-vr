@@ -84,6 +84,10 @@ let labelBoundsGroup = null;
 const labelBoundsPool = [];
 let labelBoundsCanvas = null;
 let labelBoundsCtx = null;
+const displayOptions = {
+  asterisms: true,
+  dso: true,
+};
 
 const canvas = document.getElementById('scene');
 const hudEl = document.getElementById('hud');
@@ -1393,6 +1397,13 @@ const vrMenu = createVrMenu({
   renderer,
   appVersion: APP_VERSION,
   famousStarObjects,
+  getDisplayOptions: () => displayOptions,
+  onToggleDisplayOption: (optionKey) => {
+    if (!(optionKey in displayOptions)) return;
+    displayOptions[optionKey] = !displayOptions[optionKey];
+    applyDisplayOptions();
+    setStatus(`${optionKey === 'dso' ? 'DSO' : 'Asterisms'} ${displayOptions[optionKey] ? 'shown' : 'hidden'}`);
+  },
   setStatus,
   createCircleOutlineSprite,
   onStateChange: () => updatePreviewDisplay(),
@@ -1423,6 +1434,19 @@ const asterismRenderer = createAsterismRenderer({
   },
 });
 asterismRenderer.attach({ objects: asterismObjects, keysBySourceId: asterismKeysBySourceId });
+
+function applyDisplayOptions() {
+  dsoGroup.visible = displayOptions.dso;
+  if (!displayOptions.dso) {
+    for (const dso of dsoObjects) {
+      dso.hoverOutline.visible = false;
+      dso.label.visible = false;
+    }
+  }
+  asterismRenderer.setVisible(displayOptions.asterisms);
+}
+
+applyDisplayOptions();
 
 const zenithMarker = createCrossMarkerSprite('rgba(210, 244, 255, 0.96)');
 zenithMarker.scale.set(4.2, 4.2, 1.0);
@@ -1763,6 +1787,7 @@ function updateDsoHoverLabels(xrFrame) {
     dso.hoverOutline.visible = false;
     dso.label.visible = false;
   }
+  if (!displayOptions.dso) return;
   if (!ENABLE_LABEL_RENDER) return;
 
   if (!renderer.xr.isPresenting) return;
@@ -1838,7 +1863,7 @@ function updateFamousStarHoverLabels(xrFrame) {
 }
 
 function updateAsterismHoverOverlay() {
-  asterismRenderer.updateHover(hoveredAsterismStar, ENABLE_LABEL_RENDER);
+  asterismRenderer.updateHover(hoveredAsterismStar, ENABLE_LABEL_RENDER && displayOptions.asterisms);
 }
 
 function applyLabelLayout() {

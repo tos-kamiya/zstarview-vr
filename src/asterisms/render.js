@@ -22,6 +22,7 @@ export function createAsterismRenderer({
   let asterismObjects = [];
   let asterismKeysBySourceId = new Map();
   let activeAsterism = null;
+  let visible = true;
 
   function createAsterismLineGroup(edgeCount, { color, opacity, lineWidthPx, renderOrder }) {
     const group = new THREE.Group();
@@ -76,6 +77,10 @@ export function createAsterismRenderer({
   }
 
   function refreshHighlightOverlay(asterism) {
+    if (!visible) {
+      if (activeAsterism?.lineGroup) activeAsterism.lineGroup.visible = false;
+      return;
+    }
     if (!asterism || !Array.isArray(asterism.edgeStars) || asterism.edgeStars.length === 0) {
       if (activeAsterism?.lineGroup) {
         activeAsterism.lineGroup.visible = false;
@@ -102,6 +107,10 @@ export function createAsterismRenderer({
   }
 
   function refreshAmbientOverlay(asterism) {
+    if (!visible) {
+      if (asterism?.ambientLineGroup) asterism.ambientLineGroup.visible = false;
+      return;
+    }
     if (!asterism || !Array.isArray(asterism.edgeStars) || asterism.edgeStars.length === 0) {
       return;
     }
@@ -135,7 +144,7 @@ export function createAsterismRenderer({
       asterism.label.visible = false;
       if (asterism.lineGroup) asterism.lineGroup.visible = false;
     }
-    if (!enableLabelRender) {
+    if (!visible || !enableLabelRender) {
       activeAsterism = null;
       return;
     }
@@ -178,11 +187,26 @@ export function createAsterismRenderer({
     return activeAsterism;
   }
 
+  function setVisible(nextVisible) {
+    visible = nextVisible;
+    if (!visible) {
+      activeAsterism = null;
+      for (const asterism of asterismObjects) {
+        asterism.label.visible = false;
+        if (asterism.lineGroup) asterism.lineGroup.visible = false;
+        if (asterism.ambientLineGroup) asterism.ambientLineGroup.visible = false;
+      }
+      return;
+    }
+    refreshAmbientOverlays();
+  }
+
   return {
     attach,
     refreshAmbientOverlays,
     updateHover,
     updateLineMaterialResolutions,
     getActiveAsterism,
+    setVisible,
   };
 }

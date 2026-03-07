@@ -23,6 +23,8 @@ export function createVrMenu({
   renderer,
   appVersion,
   famousStarObjects,
+  getDisplayOptions,
+  onToggleDisplayOption,
   setStatus,
   createCircleOutlineSprite,
   onStateChange,
@@ -60,7 +62,9 @@ export function createVrMenu({
     const ctx = menuPanelCtx;
     const bgColor = MENU_PANEL_COLOR.getStyle ? MENU_PANEL_COLOR.getStyle() : '#030711';
     const showPersistentSelection = menuPage === 'stars';
-    const title = menuPage === 'stars' ? 'Jump to Star' : (menuPage === 'about' ? 'About' : 'Menu');
+    const title = menuPage === 'stars'
+      ? 'Jump to Star'
+      : (menuPage === 'about' ? 'About' : (menuPage === 'display' ? 'Display Options' : 'Menu'));
     const helpLines = menuPage === 'root'
       ? ['Menu: Button', 'Point: Hover item', 'Trigger: Open / Select']
       : ['Menu: Button to close', 'Trigger: Select'];
@@ -100,7 +104,8 @@ export function createVrMenu({
         ctx.strokeRect(MENU_PANEL_PADDING / 2 + 2, entryY - 2, cnv.width - MENU_PANEL_PADDING - 4, MENU_ROW_HEIGHT - 4);
       }
       ctx.fillStyle = index === menuHoveredIndex ? '#ffffff' : ((showPersistentSelection && index === menuSelectedIndex) ? 'rgba(240,246,250,0.96)' : MENU_PANEL_TEXT_COLOR);
-      const text = entry.label ?? entry.name ?? '';
+      const prefix = entry.checked == null ? '' : `${entry.checked ? '☑' : '☐'} `;
+      const text = `${prefix}${entry.label ?? entry.name ?? ''}`;
       ctx.fillText(text, MENU_PANEL_PADDING, entryY);
       if (entry.detail) {
         ctx.font = '18px "Noto Sans JP", "Noto Sans", sans-serif';
@@ -125,14 +130,22 @@ export function createVrMenu({
   }
 
   function buildMenuEntriesForPage(page) {
+    const displayOptions = typeof getDisplayOptions === 'function' ? getDisplayOptions() : {};
     if (page === 'stars') {
       return menuStarEntries.map((star) => ({ key: `star:${star.name}`, label: star.name, action: 'star', star }));
+    }
+    if (page === 'display') {
+      return [
+        { key: 'toggle:asterisms', label: 'Asterisms', action: 'toggle', optionKey: 'asterisms', checked: displayOptions.asterisms !== false },
+        { key: 'toggle:dso', label: 'DSO', action: 'toggle', optionKey: 'dso', checked: displayOptions.dso !== false },
+      ];
     }
     if (page === 'about') {
       return [{ key: 'version', label: `Version ${appVersion}`, action: 'none' }];
     }
     return [
       { key: 'jump', label: 'Jump to Star', action: 'page', page: 'stars' },
+      { key: 'display', label: 'Display Options', action: 'page', page: 'display' },
       { key: 'about', label: 'About', action: 'page', page: 'about' },
     ];
   }
@@ -172,6 +185,15 @@ export function createVrMenu({
       }
       entry.star.highlightUntilMs = performance.now() + 3000;
       setStatus(`Selected ${entry.star.name}`);
+      notifyStateChange();
+      return;
+    }
+    if (entry.action === 'toggle' && entry.optionKey) {
+      if (typeof onToggleDisplayOption === 'function') {
+        onToggleDisplayOption(entry.optionKey);
+      }
+      rebuildMenuEntries(entry.key);
+      updateMenuPanelTexture();
       notifyStateChange();
     }
   }
