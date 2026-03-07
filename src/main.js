@@ -75,11 +75,11 @@ const DSO_HOVER_SIZE_GAIN = 3.0;
 const DSO_HIT_MIN_ANGLE_DEG = 0.9;
 const DSO_CATALOG_LIKE_NAME_RE = /^(M\d+|NGC\d+|IC\d+|MEL\d+|MWSC\d+)$/i;
 const ASTERISM_ROTATE_SLOT_MS = 3000;
-const ASTERISM_AMBIENT_LINE_OPACITY = 0.1;
+const ASTERISM_AMBIENT_LINE_OPACITY = 0.08;
 const ASTERISM_AMBIENT_LINE_COLOR = 0x78b6da;
-const ASTERISM_AMBIENT_LINE_WIDTH_PX = 10.24;
-const ASTERISM_HIGHLIGHT_LINE_WIDTH_PX = 5.12;
-const ASTERISM_LINE_OPACITY = 0.92;
+const ASTERISM_AMBIENT_LINE_WIDTH_PX = 6.0;
+const ASTERISM_HIGHLIGHT_LINE_WIDTH_PX = 3.0;
+const ASTERISM_LINE_OPACITY = 0.6;
 const ASTERISM_LINE_COLOR = 0x6bc6ff;
 const ASTERISM_LABEL_COLOR = 'rgba(117, 204, 255, 0.98)';
 const ASTERISM_LABEL_OUTLINE = 'rgba(5, 18, 35, 0.90)';
@@ -952,10 +952,10 @@ function updateMenuPanelTexture() {
   ctx.globalCompositeOperation = 'destination-over';
   ctx.fillRect(MENU_PANEL_PADDING / 2, MENU_PANEL_MENU_START_Y - MENU_PANEL_LINE_HEIGHT / 2, cnv.width - MENU_PANEL_PADDING, MENU_ROW_HEIGHT * menuPanelEntries.length + MENU_PANEL_PADDING / 2);
   ctx.globalCompositeOperation = 'source-over';
-  
+
   ctx.font = MENU_ITEM_FONT;
   let entryY = MENU_PANEL_MENU_START_Y;
-  
+
   menuPanelEntries.forEach((entry, index) => {
     if (index === menuSelectedIndex) {
       ctx.fillStyle = 'rgba(157, 216, 255, 0.3)';
