@@ -46,22 +46,24 @@ const EXTENDED_MAX_MAG_8 = 8.0;
 const EXTENDED_MAX_MAG_9 = 9.0;
 const EXTENDED_MAX_MAG_10 = 10.0;
 const APP_QUERY_PARAMS = new URLSearchParams(window.location.search);
-const MENU_PANEL_WIDTH = 0.24;
-const MENU_PANEL_HEIGHT = 0.32;
-const MENU_PANEL_OFFSET = new THREE.Vector3(0.06, -0.06, 0.0);
-const MENU_PANEL_COLOR = new THREE.Color('#0c1b31');
-const MENU_PANEL_BORDER = 'rgba(157, 216, 255, 0.72)';
-const MENU_PANEL_TEXT_COLOR = 'rgba(239, 249, 255, 0.96)';
-const MENU_PANEL_TEXT_MUTED = 'rgba(173, 196, 229, 0.82)';
-const MENU_PANEL_LINE_HEIGHT = 28;
-const MENU_PANEL_PADDING = 20;
-const MENU_PANEL_CANVAS_WIDTH = 384;
-const MENU_PANEL_CANVAS_HEIGHT = 640;
-const MENU_PANEL_MENU_START_Y = 240;
-const MENU_ROW_HEIGHT = 36;
+const MENU_PANEL_WIDTH = 0.34;
+const MENU_PANEL_HEIGHT = 0.60;
+const MENU_PANEL_FORWARD_DISTANCE = 0.95;
+const MENU_PANEL_VERTICAL_OFFSET = -0.12;
+const MENU_PANEL_SIDE_OFFSET = 0.32;
+const MENU_PANEL_COLOR = new THREE.Color('#3e434b');
+const MENU_PANEL_BORDER = 'rgba(205, 212, 220, 0.82)';
+const MENU_PANEL_TEXT_COLOR = 'rgba(247, 249, 251, 0.98)';
+const MENU_PANEL_TEXT_MUTED = 'rgba(219, 224, 230, 0.88)';
+const MENU_PANEL_LINE_HEIGHT = 34;
+const MENU_PANEL_PADDING = 26;
+const MENU_PANEL_CANVAS_WIDTH = 512;
+const MENU_PANEL_CANVAS_HEIGHT = 1120;
+const MENU_PANEL_MENU_START_Y = 280;
+const MENU_ROW_HEIGHT = 84;
 const MENU_VISIBLE_STAR_LIMIT = 10;
 const MENU_STAR_ENTRIES = FAMOUS_STARS.slice(0, MENU_VISIBLE_STAR_LIMIT);
-const MENU_ITEM_FONT = '24px "Noto Sans JP", "Noto Sans", sans-serif';
+const MENU_ITEM_FONT = '42px "Noto Sans JP", "Noto Sans", sans-serif';
 const MENU_HIGHLIGHT_DURATION_MS = 3000;
 const MENU_ARC_DURATION_MS = 3000;
 const MENU_ARC_FADE_IN_MS = 200;
@@ -150,10 +152,13 @@ let menuPanelGroup = null;
 let menuPanelMaterial = null;
 let menuPanelTexture = null;
 let menuPanelMesh = null;
+let menuPointerMarker = null;
 let menuPanelVisible = false;
 let menuButtonStates = new WeakMap();
 let menuPanelEntries = [];
+let menuPage = 'root';
 let menuSelectedIndex = 0;
+let menuHoveredIndex = -1;
 let thumbstickDebounceTimer = 0;
 let currentArc = null;
 let currentTargetCircle = null;
@@ -169,6 +174,10 @@ let labelBoundsGroup = null;
 const labelBoundsPool = [];
 let labelBoundsCanvas = null;
 let labelBoundsCtx = null;
+const menuRaycaster = new THREE.Raycaster();
+const menuPointerOrigin = new THREE.Vector3();
+const menuPointerDirection = new THREE.Vector3();
+const menuPanelLocalHit = new THREE.Vector3();
 
 const canvas = document.getElementById('scene');
 const hudEl = document.getElementById('hud');
@@ -325,6 +334,7 @@ function createControllerPointerLine() {
   });
   const line = new THREE.Line(geometry, material);
   line.scale.z = 120;
+  line.renderOrder = 50;
   line.visible = false;
   return line;
 }
@@ -359,7 +369,15 @@ for (let i = 0; i < 2; i += 1) {
     }
   });
   controller.addEventListener('selectstart', () => {
-    // Menu selection is handled via gamepad inputs now
+    if (!menuPanelVisible || activeMenuController !== controller) return;
+    const activeIndex = menuHoveredIndex >= 0 ? menuHoveredIndex : menuSelectedIndex;
+    if (activeIndex < 0) return;
+    if (activeIndex >= 0) {
+      menuSelectedIndex = activeIndex;
+      updateMenuPanelTexture();
+    }
+    const entry = menuPanelEntries[activeIndex];
+    activateMenuEntry(entry);
   });
   vrControllers.push(controller);
   scene.add(controller);
@@ -920,6 +938,11 @@ function updateMenuPanelTexture() {
   const cnv = menuPanelCanvas;
   const ctx = menuPanelCtx;
   const bgColor = MENU_PANEL_COLOR.getStyle ? MENU_PANEL_COLOR.getStyle() : '#030711';
+  const showPersistentSelection = menuPage === 'stars';
+  const title = menuPage === 'stars' ? 'Jump to Star' : (menuPage === 'about' ? 'About' : 'Menu');
+  const helpLines = menuPage === 'root'
+    ? ['Menu: Button', 'Point: Hover item', 'Trigger: Open / Select']
+    : ['Menu: Button to close', 'Trigger: Select'];
   ctx.fillStyle = bgColor;
   ctx.fillRect(0, 0, cnv.width, cnv.height);
   ctx.strokeStyle = MENU_PANEL_BORDER;
@@ -929,23 +952,12 @@ function updateMenuPanelTexture() {
   ctx.textBaseline = 'top';
   ctx.font = 'bold 32px "Noto Sans JP", "Noto Sans", sans-serif';
   ctx.fillStyle = MENU_PANEL_TEXT_COLOR;
-  ctx.fillText('Jump to Star', MENU_PANEL_PADDING, MENU_PANEL_PADDING);
+  ctx.fillText(title, MENU_PANEL_PADDING, MENU_PANEL_PADDING);
   ctx.font = '20px "Noto Sans JP", "Noto Sans", sans-serif';
-  const lines = [
-    'Menu: Button',
-    'Move: Stick Up/Down',
-  ];
   let y = MENU_PANEL_PADDING + MENU_PANEL_LINE_HEIGHT * 2 + 12;
-  for (const line of lines) {
+  for (const line of helpLines) {
     ctx.fillText(line, MENU_PANEL_PADDING, y);
     y += MENU_PANEL_LINE_HEIGHT;
-  }
-
-  if (menuPanelEntries.length === 0) {
-    menuPanelEntries = [
-      { name: 'Cancel', isCancel: true },
-      ...MENU_STAR_ENTRIES.map(star => ({ name: star.name, star: star, isCancel: false }))
-    ];
   }
 
   ctx.fillStyle = 'rgba(255,255,255,0.06)';
@@ -957,13 +969,24 @@ function updateMenuPanelTexture() {
   let entryY = MENU_PANEL_MENU_START_Y;
 
   menuPanelEntries.forEach((entry, index) => {
-    if (index === menuSelectedIndex) {
-      ctx.fillStyle = 'rgba(157, 216, 255, 0.3)';
+    if (showPersistentSelection && index === menuSelectedIndex) {
+      ctx.fillStyle = 'rgba(240, 244, 248, 0.24)';
       ctx.fillRect(MENU_PANEL_PADDING / 2, entryY - 4, cnv.width - MENU_PANEL_PADDING, MENU_ROW_HEIGHT);
     }
-    ctx.fillStyle = index === menuSelectedIndex ? '#ffffff' : MENU_PANEL_TEXT_COLOR;
-    const text = entry.isCancel ? 'Cancel' : `${index}. ${entry.name}`;
+    if (index === menuHoveredIndex) {
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.95)';
+      ctx.lineWidth = 3;
+      ctx.strokeRect(MENU_PANEL_PADDING / 2 + 2, entryY - 2, cnv.width - MENU_PANEL_PADDING - 4, MENU_ROW_HEIGHT - 4);
+    }
+    ctx.fillStyle = index === menuHoveredIndex ? '#ffffff' : ((showPersistentSelection && index === menuSelectedIndex) ? 'rgba(240,246,250,0.96)' : MENU_PANEL_TEXT_COLOR);
+    const text = entry.label ?? entry.name ?? '';
     ctx.fillText(text, MENU_PANEL_PADDING, entryY);
+    if (entry.detail) {
+      ctx.font = '18px "Noto Sans JP", "Noto Sans", sans-serif';
+      ctx.fillStyle = index === menuHoveredIndex ? '#ffffff' : ((showPersistentSelection && index === menuSelectedIndex) ? 'rgba(240,246,250,0.92)' : MENU_PANEL_TEXT_MUTED);
+      ctx.fillText(entry.detail, MENU_PANEL_PADDING + 12, entryY + 22);
+      ctx.font = MENU_ITEM_FONT;
+    }
     entryY += MENU_ROW_HEIGHT;
   });
 
@@ -979,6 +1002,61 @@ function buildMenuPanelTexture() {
   texture.colorSpace = THREE.SRGBColorSpace;
   texture.needsUpdate = true;
   return texture;
+}
+
+function buildMenuEntriesForPage(page) {
+  if (page === 'stars') {
+    return MENU_STAR_ENTRIES.map((star) => ({ key: `star:${star.name}`, label: star.name, action: 'star', star }));
+  }
+  if (page === 'about') {
+    return [
+      { key: 'version', label: `Version ${APP_VERSION}`, action: 'none' },
+    ];
+  }
+  return [
+    { key: 'jump', label: 'Jump to Star', action: 'page', page: 'stars' },
+    { key: 'about', label: 'About', action: 'page', page: 'about' },
+  ];
+}
+
+function rebuildMenuEntries(preferredKey = null) {
+  const previousKey = preferredKey ?? menuPanelEntries[menuSelectedIndex]?.key ?? null;
+  menuPanelEntries = buildMenuEntriesForPage(menuPage);
+  if (menuPage === 'stars' && preferredKey == null) {
+    menuSelectedIndex = -1;
+  } else if (menuPanelEntries.length === 0) {
+    menuSelectedIndex = 0;
+  } else {
+    const preferredIndex = previousKey ? menuPanelEntries.findIndex((entry) => entry.key === previousKey) : -1;
+    menuSelectedIndex = preferredIndex >= 0 ? preferredIndex : Math.min(menuSelectedIndex, menuPanelEntries.length - 1);
+  }
+}
+
+function openMenuPage(page, preferredKey = null) {
+  menuPage = page;
+  menuHoveredIndex = -1;
+  rebuildMenuEntries(preferredKey);
+  updateMenuPanelTexture();
+}
+
+function activateMenuEntry(entry) {
+  if (!entry) return;
+  if (entry.action === 'page' && entry.page) {
+    openMenuPage(entry.page);
+    return;
+  }
+  if (entry.action === 'star' && entry.star) {
+    const starObj = famousStarObjects.find((obj) => obj.name === entry.star.name);
+    if (!starObj) return;
+    const selectedIndex = menuPanelEntries.findIndex((candidate) => candidate.key === entry.key);
+    if (selectedIndex >= 0) {
+      menuSelectedIndex = selectedIndex;
+      updateMenuPanelTexture();
+    }
+    starObj.highlightUntilMs = performance.now() + MENU_HIGHLIGHT_DURATION_MS;
+    setStatus(`Selected ${starObj.name}`);
+    updatePreviewDisplay();
+  }
 }
 
 function ensureMenuPanel() {
@@ -1001,10 +1079,17 @@ function ensureMenuPanel() {
   const group = new THREE.Group();
   group.add(outline);
   group.add(panelMesh);
+  const pointerMarker = createCircleOutlineSprite('rgba(255, 255, 255, 0.98)');
+  pointerMarker.scale.set(0.028, 0.028, 1.0);
+  pointerMarker.position.set(0, 0, 0.003);
+  pointerMarker.renderOrder = 45;
+  pointerMarker.visible = false;
+  group.add(pointerMarker);
   group.visible = false;
   scene.add(group);
   menuPanelGroup = group;
   menuPanelMesh = panelMesh;
+  menuPointerMarker = pointerMarker;
   return group;
 }
 
@@ -1013,6 +1098,13 @@ function setMenuPanelVisible(visible) {
     ensureMenuPanel();
   }
   if (!menuPanelGroup) return;
+  if (visible) {
+    openMenuPage('root');
+  } else {
+    menuHoveredIndex = -1;
+    menuSelectedIndex = 0;
+    if (menuPointerMarker) menuPointerMarker.visible = false;
+  }
   menuPanelVisible = visible;
   menuPanelGroup.visible = visible;
   if (visible && renderer.xr.isPresenting && renderer.xr.getCamera()) {
@@ -1029,33 +1121,28 @@ function updateMenuPanelTransform(xrCam, controller = null) {
   if (!menuPanelGroup) return;
   let basePos;
   let baseQuat;
-  let isRight = false;
-  if (controller) {
-    basePos = new THREE.Vector3().setFromMatrixPosition(controller.matrixWorld);
-    baseQuat = new THREE.Quaternion().setFromRotationMatrix(controller.matrixWorld);
-    if (rightController && controller === rightController) {
-      isRight = true;
-    }
-  } else if (xrCam) {
+  let sideSign = 0;
+  if (xrCam) {
     basePos = new THREE.Vector3().setFromMatrixPosition(xrCam.matrixWorld);
     baseQuat = new THREE.Quaternion().setFromRotationMatrix(xrCam.matrixWorld);
+  } else if (controller) {
+    basePos = new THREE.Vector3().setFromMatrixPosition(controller.matrixWorld);
+    baseQuat = new THREE.Quaternion().setFromRotationMatrix(controller.matrixWorld);
   } else {
     return;
   }
-  const offset = MENU_PANEL_OFFSET.clone();
-  if (isRight) {
-    offset.x = -offset.x;
-  }
-  offset.applyQuaternion(baseQuat);
-  menuPanelGroup.position.copy(basePos).add(offset);
 
-  // Rotate panel around controller's Y-axis (vertical)
-  // Left hand: CCW 90 (+PI/2), Right hand: CW 90 (-PI/2)
-  const additionalQuat = new THREE.Quaternion().setFromAxisAngle(
-    new THREE.Vector3(0, 1, 0),
-    isRight ? -Math.PI / 2 : Math.PI / 2
-  );
-  menuPanelGroup.quaternion.copy(baseQuat).multiply(additionalQuat);
+  const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(baseQuat).normalize();
+  const up = new THREE.Vector3(0, 1, 0).applyQuaternion(baseQuat).normalize();
+  const right = new THREE.Vector3(1, 0, 0).applyQuaternion(baseQuat).normalize();
+  if (controller) {
+    sideSign = controller === leftController ? -1 : (controller === rightController ? 1 : 0);
+  }
+  menuPanelGroup.position.copy(basePos)
+    .addScaledVector(forward, MENU_PANEL_FORWARD_DISTANCE)
+    .addScaledVector(up, MENU_PANEL_VERTICAL_OFFSET)
+    .addScaledVector(right, MENU_PANEL_SIDE_OFFSET * sideSign);
+  menuPanelGroup.quaternion.copy(baseQuat);
 }
 
 function getCurrentForwardDirection() {
@@ -1137,19 +1224,25 @@ function updateDynamicArc() {
   }
 }
 
+function getPreviewStarObject() {
+  if (!menuPanelVisible || menuPage !== 'stars') {
+    return null;
+  }
+  const activeIndex = menuSelectedIndex >= 0
+    ? menuSelectedIndex
+    : ((renderer.xr.isPresenting && menuHoveredIndex >= 0) ? menuHoveredIndex : -1);
+  const selectedEntry = menuPanelEntries[activeIndex];
+  if (!selectedEntry || selectedEntry.action !== 'star' || !selectedEntry.star) {
+    return null;
+  }
+  return famousStarObjects.find((obj) => obj.name === selectedEntry.star.name) || null;
+}
+
 function updatePreviewDisplay() {
   clearPreviewDisplay();
-  selectedStarObject = null;
-
-  if (!menuPanelVisible) return;
-
-  const selectedEntry = menuPanelEntries[menuSelectedIndex];
-  if (!selectedEntry || selectedEntry.isCancel) return;
-
-  const starObj = famousStarObjects.find((obj) => obj.name === selectedEntry.star.name);
+  selectedStarObject = getPreviewStarObject();
+  const starObj = selectedStarObject;
   if (!starObj) return;
-
-  selectedStarObject = starObj;
 
   const targetDir = starObj.worldDirection.clone().normalize();
 
@@ -2523,12 +2616,10 @@ function processMenuButtonInput(xrFrame) {
         }
 
         if (yAxis > 0.5) {
-          menuSelectedIndex = (menuSelectedIndex + 1) % menuPanelEntries.length;
-          updateMenuPanelTexture();
+          moveMenuSelection(1);
           thumbstickDebounceTimer = nowMs;
         } else if (yAxis < -0.5) {
-          menuSelectedIndex = (menuSelectedIndex - 1 + menuPanelEntries.length) % menuPanelEntries.length;
-          updateMenuPanelTexture();
+          moveMenuSelection(-1);
           thumbstickDebounceTimer = nowMs;
         }
       }
@@ -2537,6 +2628,61 @@ function processMenuButtonInput(xrFrame) {
 }
 function formatBytesMiB(bytes) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MiB`;
+}
+
+function getMenuPointerHitFromController(controller) {
+  if (!menuPanelVisible || !menuPanelMesh || !controller) return null;
+  menuPointerOrigin.setFromMatrixPosition(controller.matrixWorld);
+  menuPointerDirection.set(0, 0, -1).applyQuaternion(
+    new THREE.Quaternion().setFromRotationMatrix(controller.matrixWorld)
+  ).normalize();
+  menuRaycaster.set(menuPointerOrigin, menuPointerDirection);
+  const hits = menuRaycaster.intersectObject(menuPanelMesh, false);
+  const hit = hits[0];
+  if (!hit) return null;
+
+  menuPanelLocalHit.copy(hit.point);
+  menuPanelMesh.worldToLocal(menuPanelLocalHit);
+  const yPx = (0.5 - (menuPanelLocalHit.y / MENU_PANEL_HEIGHT)) * MENU_PANEL_CANVAS_HEIGHT;
+  const top = MENU_PANEL_MENU_START_Y - MENU_PANEL_LINE_HEIGHT / 2;
+  const bottom = top + MENU_ROW_HEIGHT * menuPanelEntries.length + MENU_PANEL_PADDING / 2;
+  const withinY = yPx >= top && yPx <= bottom;
+  let index = -1;
+  if (withinY) {
+    const candidate = Math.floor((yPx - MENU_PANEL_MENU_START_Y) / MENU_ROW_HEIGHT);
+    index = candidate >= 0 && candidate < menuPanelEntries.length ? candidate : -1;
+  }
+  return { hitPointWorld: hit.point.clone(), localHit: menuPanelLocalHit.clone(), index };
+}
+
+function updateMenuPointerHover() {
+  if (!menuPanelVisible || !renderer.xr.isPresenting || !activeMenuController) return;
+  const pointerHit = getMenuPointerHitFromController(activeMenuController);
+  const hoveredIndex = pointerHit?.index ?? -1;
+  if (menuPointerMarker) {
+    if (pointerHit?.localHit) {
+      menuPointerMarker.visible = true;
+      menuPointerMarker.position.set(pointerHit.localHit.x, pointerHit.localHit.y, 0.003);
+    } else {
+      menuPointerMarker.visible = false;
+    }
+  }
+  if (hoveredIndex !== menuHoveredIndex) {
+    menuHoveredIndex = hoveredIndex;
+    updateMenuPanelTexture();
+    updatePreviewDisplay();
+  }
+}
+
+function moveMenuSelection(delta) {
+  if (menuPanelEntries.length === 0) return;
+  if (menuSelectedIndex < 0) {
+    menuSelectedIndex = delta >= 0 ? 0 : menuPanelEntries.length - 1;
+  } else {
+    menuSelectedIndex = (menuSelectedIndex + delta + menuPanelEntries.length) % menuPanelEntries.length;
+  }
+  updateMenuPanelTexture();
+  updatePreviewDisplay();
 }
 
 function hasAllRequestedStarDataLoaded() {
@@ -2718,15 +2864,13 @@ window.addEventListener('keydown', (event) => {
   } else if (menuPanelVisible) {
     if (event.key === 'ArrowUp') {
       event.preventDefault();
-      menuSelectedIndex = (menuSelectedIndex - 1 + menuPanelEntries.length) % menuPanelEntries.length;
-      updateMenuPanelTexture();
+      moveMenuSelection(-1);
     } else if (event.key === 'ArrowDown') {
       event.preventDefault();
-      menuSelectedIndex = (menuSelectedIndex + 1) % menuPanelEntries.length;
-      updateMenuPanelTexture();
+      moveMenuSelection(1);
     } else if (event.key === 'Enter') {
       event.preventDefault();
-      setMenuPanelVisible(false);
+      activateMenuEntry(menuPanelEntries[menuSelectedIndex]);
     }
   }
 });
@@ -2817,6 +2961,7 @@ renderer.setAnimationLoop((_time, xrFrame) => {
       safeCall('processMenuButtonInput', () => processMenuButtonInput(xrFrame));
       if (menuPanelVisible && xrCam) {
         safeCall('updateMenuPanelTransformXR', () => updateMenuPanelTransform(xrCam, activeMenuController));
+        safeCall('updateMenuPointerHover', () => updateMenuPointerHover());
       }
 
       if (vrSplashSprite) {
