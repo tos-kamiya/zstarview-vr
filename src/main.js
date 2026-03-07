@@ -1,12 +1,11 @@
 import * as THREE from 'three';
-import { Line2 } from 'three/examples/jsm/lines/Line2.js';
-import { LineGeometry } from 'three/examples/jsm/lines/LineGeometry.js';
-import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
 import * as Astronomy from 'astronomy-engine';
 import { FAMOUS_STARS, ASTERISM_STARS } from './generated/famous-stars-data.js';
 import { ASTERISM_DEFS } from './asterisms/catalog.js';
 import { buildAsterismsFromStars } from './asterisms/runtime.js';
+import { createAsterismRenderer } from './asterisms/render.js';
 import { createVrMenu } from './menu/vr-menu.js';
+import { createStarPreviewRenderer } from './menu/star-preview.js';
 import packageJson from '../package.json';
 
 const DEFAULT_LOCATION = {
@@ -49,11 +48,6 @@ const EXTENDED_MAX_MAG_8 = 8.0;
 const EXTENDED_MAX_MAG_9 = 9.0;
 const EXTENDED_MAX_MAG_10 = 10.0;
 const APP_QUERY_PARAMS = new URLSearchParams(window.location.search);
-const MENU_HIGHLIGHT_DURATION_MS = 3000;
-const MENU_ARC_MIN_SEGMENTS = 64;
-const MENU_ARC_MAX_SEGMENTS = 96;
-const MENU_ARC_WIDTH_DEG = 0.2;
-const MENU_ARC_SKIP_THRESHOLD_DEG = 1.0;
 const DSO_SHAPE_MIN_MAJOR_ARCMIN = 15.0;
 const DSO_HOVER_SIZE_GAIN = 3.0;
 const DSO_HIT_MIN_ANGLE_DEG = 0.9;
@@ -67,17 +61,11 @@ const ASTERISM_LINE_OPACITY = 0.6;
 const ASTERISM_LINE_COLOR = 0x6bc6ff;
 const ASTERISM_LABEL_COLOR = 'rgba(117, 204, 255, 0.98)';
 const ASTERISM_LABEL_OUTLINE = 'rgba(5, 18, 35, 0.90)';
-const LABEL_LAYOUT_MARGIN_PX = 10;
 const LABEL_LAYOUT_INTERVAL_MS = 100;
 const SOLAR_UPDATE_INTERVAL_MS = 500;
 const LABEL_LAYOUT_MAX_RADIUS_PX = 240;
 const LABEL_LAYOUT_RING_STEP_PX = 18;
-const LABEL_LAYOUT_EASE_STEP_PX = 16;
 const LABEL_CANVAS_BASE_ASPECT = 512 / 192;
-const LABEL_COLLISION_PAD_X_PX = 4;
-const LABEL_COLLISION_PAD_Y_PX = 12;
-const LABEL_COLLISION_HEIGHT_SCALE = 1.18;
-const LABEL_COLLISION_USE_FULL_SPRITE_BOUNDS = true;
 const SHOW_LABEL_BOUNDS_DEBUG = false;
 const SHOW_LABEL_BOUNDS_DEBUG_3D = false;
 const SHOW_LABEL_BOUNDS_DEBUG_2D = false;
@@ -85,28 +73,11 @@ const COLORIZE_LABEL_SPRITES_DEBUG = false;
 // Debug switch: disable all label rendering/layout to isolate freeze root-cause.
 const ENABLE_LABEL_RENDER = true;
 
-function buildLabelLayoutOffsets() {
-  const offsets = [[0, 0]];
-  for (let r = LABEL_LAYOUT_RING_STEP_PX; r <= LABEL_LAYOUT_MAX_RADIUS_PX; r += LABEL_LAYOUT_RING_STEP_PX) {
-    const steps = Math.max(8, Math.round((2 * Math.PI * r) / 22));
-    for (let i = 0; i < steps; i += 1) {
-      const t = (i / steps) * Math.PI * 2;
-      offsets.push([Math.round(Math.cos(t) * r), Math.round(Math.sin(t) * r)]);
-    }
-  }
-  return offsets;
-}
-const LABEL_LAYOUT_OFFSETS = buildLabelLayoutOffsets();
-
-const menuTarget = new THREE.Vector3();
-let currentArc = null;
-let currentTargetCircle = null;
 let pointerHoverCircles = [];
 let selectedStarObject = null;
 let hoveredAsterismStar = null;
 let asterismObjects = [];
 let asterismKeysBySourceId = new Map();
-let activeAsterism = null;
 let lastLabelLayoutMs = 0;
 let lastRuntimeWarning = '';
 let labelBoundsGroup = null;
@@ -581,40 +552,6 @@ function worldUnitsPerPixelAt(pointWorld, cam, viewportHeightPx) {
   return visibleHeight / Math.max(1, viewportHeightPx);
 }
 
-function createAsterismLineGroup(edgeCount, { color, opacity, lineWidthPx, renderOrder }) {
-  const group = new THREE.Group();
-  for (let i = 0; i < edgeCount; i += 1) {
-    const geometry = new LineGeometry();
-    const material = new LineMaterial({
-      color,
-      transparent: true,
-      opacity,
-      linewidth: lineWidthPx,
-      depthWrite: false,
-      depthTest: false,
-      worldUnits: false,
-    });
-    material.resolution.set(window.innerWidth, window.innerHeight);
-    const line = new Line2(geometry, material);
-    line.renderOrder = renderOrder;
-    group.add(line);
-  }
-  return group;
-}
-
-function updateAsterismLineMaterialResolutions() {
-  for (const asterism of asterismObjects) {
-    for (const group of [asterism.ambientLineGroup, asterism.lineGroup]) {
-      if (!group) continue;
-      for (const line of group.children) {
-        if (line?.material?.resolution) {
-          line.material.resolution.set(window.innerWidth, window.innerHeight);
-        }
-      }
-    }
-  }
-}
-
 function setLabelAnchor(sprite, position) {
   if (!ENABLE_LABEL_RENDER) {
     sprite.visible = false;
@@ -622,82 +559,6 @@ function setLabelAnchor(sprite, position) {
   }
   sprite.userData.anchorWorld = position.clone();
   sprite.position.copy(position);
-}
-
-function refreshAsterismOverlay(asterism) {
-  if (!asterism || !Array.isArray(asterism.edgeStars) || asterism.edgeStars.length === 0) {
-    if (activeAsterism?.lineGroup) {
-      activeAsterism.lineGroup.visible = false;
-    }
-    return;
-  }
-
-  if (!asterism.lineGroup) {
-    asterism.lineGroup = createAsterismLineGroup(asterism.edgeStars.length, {
-      color: ASTERISM_LINE_COLOR,
-      opacity: ASTERISM_LINE_OPACITY,
-      lineWidthPx: ASTERISM_HIGHLIGHT_LINE_WIDTH_PX,
-      renderOrder: 6,
-    });
-    solarSystemGroup.add(asterism.lineGroup);
-  }
-
-  for (let i = 0; i < asterism.edgeStars.length; i += 1) {
-    const [starA, starB] = asterism.edgeStars[i];
-    const line = asterism.lineGroup.children[i];
-    if (!line || !line.geometry || !starA?.worldDirection || !starB?.worldDirection) continue;
-    line.geometry.setPositions([
-      starA.worldDirection.x * (SYMBOL_RADIUS - 0.9),
-      starA.worldDirection.y * (SYMBOL_RADIUS - 0.9),
-      starA.worldDirection.z * (SYMBOL_RADIUS - 0.9),
-      starB.worldDirection.x * (SYMBOL_RADIUS - 0.9),
-      starB.worldDirection.y * (SYMBOL_RADIUS - 0.9),
-      starB.worldDirection.z * (SYMBOL_RADIUS - 0.9),
-    ]);
-    line.computeLineDistances();
-  }
-
-  asterism.lineGroup.visible = true;
-}
-
-function refreshAmbientAsterismOverlay(asterism) {
-  if (!asterism || !Array.isArray(asterism.edgeStars) || asterism.edgeStars.length === 0) {
-    return;
-  }
-
-  if (!asterism.ambientLineGroup) {
-    asterism.ambientLineGroup = createAsterismLineGroup(asterism.edgeStars.length, {
-      color: ASTERISM_AMBIENT_LINE_COLOR,
-      opacity: ASTERISM_AMBIENT_LINE_OPACITY,
-      lineWidthPx: ASTERISM_AMBIENT_LINE_WIDTH_PX,
-      renderOrder: 5,
-    });
-    solarSystemGroup.add(asterism.ambientLineGroup);
-  }
-
-  for (let i = 0; i < asterism.edgeStars.length; i += 1) {
-    const [starA, starB] = asterism.edgeStars[i];
-    const line = asterism.ambientLineGroup.children[i];
-    if (!line || !line.geometry || !starA?.worldDirection || !starB?.worldDirection) continue;
-    const positions = [
-      starA.worldDirection.x * (SYMBOL_RADIUS - 0.9),
-      starA.worldDirection.y * (SYMBOL_RADIUS - 0.9),
-      starA.worldDirection.z * (SYMBOL_RADIUS - 0.9),
-      starB.worldDirection.x * (SYMBOL_RADIUS - 0.9),
-      starB.worldDirection.y * (SYMBOL_RADIUS - 0.9),
-      starB.worldDirection.z * (SYMBOL_RADIUS - 0.9),
-    ];
-    line.geometry.setPositions(positions);
-    line.computeLineDistances();
-  }
-
-  asterism.ambientLineGroup.visible = true;
-}
-
-function refreshAmbientAsterismOverlays() {
-  for (const asterism of asterismObjects) {
-    refreshAmbientAsterismOverlay(asterism);
-  }
 }
 
 function createVrSplashSprite(text) {
@@ -779,94 +640,10 @@ function getCurrentForwardDirection() {
   return new THREE.Vector3(0, 0, -1).applyQuaternion(worldQuat).normalize();
 }
 
-function clearPreviewDisplay() {
-  if (currentArc) {
-    solarSystemGroup.remove(currentArc);
-    currentArc.geometry.dispose();
-    currentArc.material.dispose();
-    currentArc = null;
-  }
-  if (currentTargetCircle) {
-    solarSystemGroup.remove(currentTargetCircle);
-    currentTargetCircle.material.dispose();
-    currentTargetCircle = null;
-  }
-}
-
-function createGreatCircleArcMesh(startDir, targetDir, angleRad) {
-  const segments = angleRad >= THREE.MathUtils.degToRad(150.0)
-    ? MENU_ARC_MAX_SEGMENTS
-    : MENU_ARC_MIN_SEGMENTS;
-  const points = [];
-
-  const axis = new THREE.Vector3().crossVectors(startDir, targetDir);
-  if (axis.lengthSq() < 1e-6) {
-    axis.set(1, 0, 0).cross(startDir);
-    if (axis.lengthSq() < 1e-6) {
-      axis.set(0, 1, 0).cross(startDir);
-    }
-  }
-  axis.normalize();
-
-  for (let i = 0; i <= segments; i += 1) {
-    const t = i / segments;
-    const currentAngle = angleRad * t;
-    menuTarget.copy(startDir).applyAxisAngle(axis, currentAngle).normalize();
-    const scaled = menuTarget.clone().multiplyScalar(SYMBOL_RADIUS - 0.4);
-    points.push(scaled);
-  }
-  const curve = new THREE.CatmullRomCurve3(points);
-  const tubeRadius = SYMBOL_RADIUS * Math.tan(THREE.MathUtils.degToRad(MENU_ARC_WIDTH_DEG) * 0.5) * 0.6;
-  const geometry = new THREE.TubeGeometry(curve, segments * 3, Math.max(0.5, tubeRadius), 8, false);
-  const material = new THREE.MeshBasicMaterial({
-    color: 0x7fdbff,
-    transparent: true,
-    opacity: 0.0,
-    blending: THREE.AdditiveBlending,
-    depthWrite: false,
-  });
-  const mesh = new THREE.Mesh(geometry, material);
-  mesh.renderOrder = 30;
-  solarSystemGroup.add(mesh);
-  return mesh;
-}
-
-function updateDynamicArc() {
-  if (currentArc) {
-    solarSystemGroup.remove(currentArc);
-    currentArc.geometry.dispose();
-    currentArc.material.dispose();
-    currentArc = null;
-  }
-
-  if (!vrMenu.isVisible() || !selectedStarObject) return;
-
-  const forward = getCurrentForwardDirection();
-  const targetDir = selectedStarObject.worldDirection.clone().normalize();
-  const angleRad = forward.angleTo(targetDir);
-
-  if (angleRad >= THREE.MathUtils.degToRad(MENU_ARC_SKIP_THRESHOLD_DEG)) {
-    currentArc = createGreatCircleArcMesh(forward, targetDir, angleRad);
-    currentArc.material.opacity = 0.9;
-  }
-}
-
 function updatePreviewDisplay() {
-  clearPreviewDisplay();
   selectedStarObject = vrMenu.getPreviewStarObject();
-  const starObj = selectedStarObject;
-  if (!starObj) return;
-
-  const targetDir = starObj.worldDirection.clone().normalize();
-
-  currentTargetCircle = createCircleOutlineSprite('rgba(127, 219, 255, 0.9)');
-  currentTargetCircle.scale.set(6, 6, 1.0);
-  currentTargetCircle.position.copy(targetDir).multiplyScalar(SYMBOL_RADIUS - 0.2);
-  currentTargetCircle.renderOrder = 35;
-  solarSystemGroup.add(currentTargetCircle);
-
-  setStatus(`Previewing ${starObj.name}`);
-  updateDynamicArc();
+  starPreviewRenderer.setTarget(selectedStarObject);
+  starPreviewRenderer.refresh();
 }
 
 
@@ -1598,6 +1375,19 @@ const asterismOnlyStarObjects = ASTERISM_STARS
   });
 const asterismStarObjects = [...famousStarObjects, ...asterismOnlyStarObjects];
 const hoverSelectableStarObjects = asterismStarObjects;
+const starPreviewRenderer = createStarPreviewRenderer({
+  solarSystemGroup,
+  symbolRadius: SYMBOL_RADIUS,
+  createCircleOutlineSprite,
+  getCurrentForwardDirection,
+  setStatus,
+  arcConfig: {
+    minSegments: 64,
+    maxSegments: 96,
+    widthDeg: 0.2,
+    skipThresholdDeg: 1.0,
+  },
+});
 const vrMenu = createVrMenu({
   scene,
   renderer,
@@ -1618,6 +1408,21 @@ const vrMenu = createVrMenu({
     return label;
   },
 }));
+const asterismRenderer = createAsterismRenderer({
+  solarSystemGroup,
+  symbolRadius: SYMBOL_RADIUS,
+  setLabelAnchor,
+  config: {
+    rotateSlotMs: ASTERISM_ROTATE_SLOT_MS,
+    ambientLineOpacity: ASTERISM_AMBIENT_LINE_OPACITY,
+    ambientLineColor: ASTERISM_AMBIENT_LINE_COLOR,
+    ambientLineWidthPx: ASTERISM_AMBIENT_LINE_WIDTH_PX,
+    highlightLineOpacity: ASTERISM_LINE_OPACITY,
+    highlightLineColor: ASTERISM_LINE_COLOR,
+    highlightLineWidthPx: ASTERISM_HIGHLIGHT_LINE_WIDTH_PX,
+  },
+});
+asterismRenderer.attach({ objects: asterismObjects, keysBySourceId: asterismKeysBySourceId });
 
 const zenithMarker = createCrossMarkerSprite('rgba(210, 244, 255, 0.96)');
 zenithMarker.scale.set(4.2, 4.2, 1.0);
@@ -1740,7 +1545,7 @@ function updateStarfieldOrientation(when) {
   for (const star of asterismOnlyStarObjects) {
     star.worldDirection.copy(star.equatorialDirection).applyQuaternion(equatorialRotation).normalize();
   }
-  refreshAmbientAsterismOverlays();
+  asterismRenderer.refreshAmbientOverlays();
 
   for (const dso of dsoObjects) {
     dso.worldDirection.copy(dso.eqCenter).applyQuaternion(equatorialRotation).normalize();
@@ -2033,47 +1838,7 @@ function updateFamousStarHoverLabels(xrFrame) {
 }
 
 function updateAsterismHoverOverlay() {
-  for (const a of asterismObjects) {
-    a.label.visible = false;
-    if (a.lineGroup) a.lineGroup.visible = false;
-  }
-  if (!ENABLE_LABEL_RENDER) {
-    activeAsterism = null;
-    return;
-  }
-
-  if (!hoveredAsterismStar) {
-    activeAsterism = null;
-    return;
-  }
-
-  const hoveredSourceId = String(hoveredAsterismStar.sourceId || '').trim().toUpperCase();
-  const keys = asterismKeysBySourceId.get(hoveredSourceId) || [];
-  if (keys.length === 0) {
-    activeAsterism = null;
-    return;
-  }
-
-  const slot = Math.floor(performance.now() / ASTERISM_ROTATE_SLOT_MS);
-  const selectedKey = keys[slot % keys.length];
-  const selected = asterismObjects.find((a) => a.key === selectedKey);
-  if (!selected || !Array.isArray(selected.memberStars) || selected.memberStars.length < 2) {
-    activeAsterism = null;
-    return;
-  }
-
-  activeAsterism = selected;
-  refreshAsterismOverlay(selected);
-  selected.label.visible = true;
-
-  const center = new THREE.Vector3();
-  for (const star of selected.memberStars) {
-    if (!star?.worldDirection) continue;
-    center.add(star.worldDirection);
-  }
-  if (center.lengthSq() < 1e-8) return;
-  center.multiplyScalar(1 / selected.memberStars.length).normalize();
-  setLabelAnchor(selected.label, center.multiplyScalar(SYMBOL_RADIUS + 0.7));
+  asterismRenderer.updateHover(hoveredAsterismStar, ENABLE_LABEL_RENDER);
 }
 
 function applyLabelLayout() {
@@ -2102,7 +1867,8 @@ function applyLabelLayout() {
     // Keep planet labels visible in close conjunctions by allowing fallback placement.
     if (p.label.visible) pushCandidate({ sprite: p.label, priority: 1, hideOnOverlap: false });
   }
-  if (activeAsterism?.label?.visible) pushCandidate({ sprite: activeAsterism.label, priority: 2, hideOnOverlap: false });
+  const activeAsterismLabel = asterismRenderer.getActiveAsterism()?.label;
+  if (activeAsterismLabel?.visible) pushCandidate({ sprite: activeAsterismLabel, priority: 2, hideOnOverlap: false });
   for (const dso of dsoObjects) {
     if (dso.label.visible) pushCandidate({ sprite: dso.label, priority: 3, hideOnOverlap: false });
   }
@@ -2365,7 +2131,7 @@ function onResize() {
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
   fisheyePostMaterial.uniforms.uAspect.value = window.innerWidth / Math.max(1, window.innerHeight);
-  updateAsterismLineMaterialResolutions();
+  asterismRenderer.updateLineMaterialResolutions();
   resizeLabelBoundsCanvas();
 }
 
@@ -2445,7 +2211,7 @@ renderer.setAnimationLoop((_time, xrFrame) => {
     }
 
     if (vrMenu.isVisible() && selectedStarObject) {
-      safeCall('updateDynamicArc', () => updateDynamicArc());
+      safeCall('refreshStarPreviewArc', () => starPreviewRenderer.refreshArc());
     }
 
     // Keep sky and stars centered around the observer.
