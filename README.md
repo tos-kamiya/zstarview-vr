@@ -93,7 +93,7 @@ The VR variant keeps the existing interaction model ("the user turns to face the
 
 ## Feature: Asterism Overlay (Imported from zstarview)
 
-- When you point at a famous star, an asterism (line pattern) that includes that star is shown.
+- Asterisms are always shown as dim ambient lines, and pointing at a famous star brightens the matching pattern.
 - If multiple asterisms share the same star, the overlay rotates every 3 seconds.
 - Asterism definitions are imported in HIP/source-id form to match zstarview data.
 

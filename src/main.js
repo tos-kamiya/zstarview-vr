@@ -1,4 +1,7 @@
 import * as THREE from 'three';
+import { Line2 } from 'three/examples/jsm/lines/Line2.js';
+import { LineGeometry } from 'three/examples/jsm/lines/LineGeometry.js';
+import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
 import * as Astronomy from 'astronomy-engine';
 import { FAMOUS_STARS, ASTERISM_STARS } from './generated/famous-stars-data.js';
 import packageJson from '../package.json';
@@ -72,6 +75,10 @@ const DSO_HOVER_SIZE_GAIN = 3.0;
 const DSO_HIT_MIN_ANGLE_DEG = 0.9;
 const DSO_CATALOG_LIKE_NAME_RE = /^(M\d+|NGC\d+|IC\d+|MEL\d+|MWSC\d+)$/i;
 const ASTERISM_ROTATE_SLOT_MS = 3000;
+const ASTERISM_AMBIENT_LINE_OPACITY = 0.1;
+const ASTERISM_AMBIENT_LINE_COLOR = 0x78b6da;
+const ASTERISM_AMBIENT_LINE_WIDTH_PX = 10.24;
+const ASTERISM_HIGHLIGHT_LINE_WIDTH_PX = 5.12;
 const ASTERISM_LINE_OPACITY = 0.92;
 const ASTERISM_LINE_COLOR = 0x6bc6ff;
 const ASTERISM_LABEL_COLOR = 'rgba(117, 204, 255, 0.98)';
@@ -152,7 +159,7 @@ let currentArc = null;
 let currentTargetCircle = null;
 let pointerHoverCircles = [];
 let selectedStarObject = null;
-let hoveredFamousStar = null;
+let hoveredAsterismStar = null;
 let asterismObjects = [];
 let asterismKeysBySourceId = new Map();
 let activeAsterism = null;
@@ -719,6 +726,40 @@ function sampleGreatCircle(a, b, segments = 48) {
   return points;
 }
 
+function createAsterismLineGroup(edgeCount, { color, opacity, lineWidthPx, renderOrder }) {
+  const group = new THREE.Group();
+  for (let i = 0; i < edgeCount; i += 1) {
+    const geometry = new LineGeometry();
+    const material = new LineMaterial({
+      color,
+      transparent: true,
+      opacity,
+      linewidth: lineWidthPx,
+      depthWrite: false,
+      depthTest: false,
+      worldUnits: false,
+    });
+    material.resolution.set(window.innerWidth, window.innerHeight);
+    const line = new Line2(geometry, material);
+    line.renderOrder = renderOrder;
+    group.add(line);
+  }
+  return group;
+}
+
+function updateAsterismLineMaterialResolutions() {
+  for (const asterism of asterismObjects) {
+    for (const group of [asterism.ambientLineGroup, asterism.lineGroup]) {
+      if (!group) continue;
+      for (const line of group.children) {
+        if (line?.material?.resolution) {
+          line.material.resolution.set(window.innerWidth, window.innerHeight);
+        }
+      }
+    }
+  }
+}
+
 function setLabelAnchor(sprite, position) {
   if (!ENABLE_LABEL_RENDER) {
     sprite.visible = false;
@@ -737,32 +778,71 @@ function refreshAsterismOverlay(asterism) {
   }
 
   if (!asterism.lineGroup) {
-    const group = new THREE.Group();
-    for (let i = 0; i < asterism.edgeStars.length; i += 1) {
-      const geometry = new THREE.BufferGeometry();
-      const material = new THREE.LineBasicMaterial({
-        color: ASTERISM_LINE_COLOR,
-        transparent: true,
-        opacity: ASTERISM_LINE_OPACITY,
-        depthWrite: false,
-        depthTest: false,
-      });
-      const line = new THREE.Line(geometry, material);
-      line.renderOrder = 6;
-      group.add(line);
-    }
-    asterism.lineGroup = group;
-    solarSystemGroup.add(group);
+    asterism.lineGroup = createAsterismLineGroup(asterism.edgeStars.length, {
+      color: ASTERISM_LINE_COLOR,
+      opacity: ASTERISM_LINE_OPACITY,
+      lineWidthPx: ASTERISM_HIGHLIGHT_LINE_WIDTH_PX,
+      renderOrder: 6,
+    });
+    solarSystemGroup.add(asterism.lineGroup);
   }
 
   for (let i = 0; i < asterism.edgeStars.length; i += 1) {
     const [starA, starB] = asterism.edgeStars[i];
     const line = asterism.lineGroup.children[i];
     if (!line || !line.geometry || !starA?.worldDirection || !starB?.worldDirection) continue;
-    line.geometry.setFromPoints(sampleGreatCircle(starA.worldDirection, starB.worldDirection));
+    line.geometry.setPositions([
+      starA.worldDirection.x * (SYMBOL_RADIUS - 0.9),
+      starA.worldDirection.y * (SYMBOL_RADIUS - 0.9),
+      starA.worldDirection.z * (SYMBOL_RADIUS - 0.9),
+      starB.worldDirection.x * (SYMBOL_RADIUS - 0.9),
+      starB.worldDirection.y * (SYMBOL_RADIUS - 0.9),
+      starB.worldDirection.z * (SYMBOL_RADIUS - 0.9),
+    ]);
+    line.computeLineDistances();
   }
 
   asterism.lineGroup.visible = true;
+}
+
+function refreshAmbientAsterismOverlay(asterism) {
+  if (!asterism || !Array.isArray(asterism.edgeStars) || asterism.edgeStars.length === 0) {
+    return;
+  }
+
+  if (!asterism.ambientLineGroup) {
+    asterism.ambientLineGroup = createAsterismLineGroup(asterism.edgeStars.length, {
+      color: ASTERISM_AMBIENT_LINE_COLOR,
+      opacity: ASTERISM_AMBIENT_LINE_OPACITY,
+      lineWidthPx: ASTERISM_AMBIENT_LINE_WIDTH_PX,
+      renderOrder: 5,
+    });
+    solarSystemGroup.add(asterism.ambientLineGroup);
+  }
+
+  for (let i = 0; i < asterism.edgeStars.length; i += 1) {
+    const [starA, starB] = asterism.edgeStars[i];
+    const line = asterism.ambientLineGroup.children[i];
+    if (!line || !line.geometry || !starA?.worldDirection || !starB?.worldDirection) continue;
+    const positions = [
+      starA.worldDirection.x * (SYMBOL_RADIUS - 0.9),
+      starA.worldDirection.y * (SYMBOL_RADIUS - 0.9),
+      starA.worldDirection.z * (SYMBOL_RADIUS - 0.9),
+      starB.worldDirection.x * (SYMBOL_RADIUS - 0.9),
+      starB.worldDirection.y * (SYMBOL_RADIUS - 0.9),
+      starB.worldDirection.z * (SYMBOL_RADIUS - 0.9),
+    ];
+    line.geometry.setPositions(positions);
+    line.computeLineDistances();
+  }
+
+  asterism.ambientLineGroup.visible = true;
+}
+
+function refreshAmbientAsterismOverlays() {
+  for (const asterism of asterismObjects) {
+    refreshAmbientAsterismOverlay(asterism);
+  }
 }
 
 function createVrSplashSprite(text) {
@@ -1811,6 +1891,7 @@ const asterismOnlyStarObjects = ASTERISM_STARS
     return { ...def, equatorialDirection, worldDirection: equatorialDirection.clone() };
   });
 const asterismStarObjects = [...famousStarObjects, ...asterismOnlyStarObjects];
+const hoverSelectableStarObjects = asterismStarObjects;
 asterismObjects = buildAsterismsFromFamousStars(asterismStarObjects);
 
 const zenithMarker = createCrossMarkerSprite('rgba(210, 244, 255, 0.96)');
@@ -1934,6 +2015,7 @@ function updateStarfieldOrientation(when) {
   for (const star of asterismOnlyStarObjects) {
     star.worldDirection.copy(star.equatorialDirection).applyQuaternion(equatorialRotation).normalize();
   }
+  refreshAmbientAsterismOverlays();
 
   for (const dso of dsoObjects) {
     dso.worldDirection.copy(dso.eqCenter).applyQuaternion(equatorialRotation).normalize();
@@ -2095,7 +2177,7 @@ function updatePointerHoverCircles(xrFrame) {
   if (!rayDirs || rayDirs.length === 0) return;
 
   const candidates = [];
-  for (const star of famousStarObjects) {
+  for (const star of hoverSelectableStarObjects) {
     candidates.push({
       direction: star.worldDirection,
       hitCos: FAMOUS_STAR_HIT_COS,
@@ -2181,7 +2263,7 @@ function updateDsoHoverLabels(xrFrame) {
 }
 
 function updateFamousStarHoverLabels(xrFrame) {
-  hoveredFamousStar = null;
+  hoveredAsterismStar = null;
   if (!ENABLE_LABEL_RENDER) {
     for (const star of famousStarObjects) {
       star.label.visible = false;
@@ -2207,7 +2289,7 @@ function updateFamousStarHoverLabels(xrFrame) {
   let bestStar = null;
   let bestDot = FAMOUS_STAR_HIT_COS;
 
-  for (const star of famousStarObjects) {
+  for (const star of hoverSelectableStarObjects) {
     for (const rayDir of rayDirs) {
       const dot = rayDir.dot(star.worldDirection);
       if (dot > bestDot) {
@@ -2218,8 +2300,10 @@ function updateFamousStarHoverLabels(xrFrame) {
   }
 
   if (bestStar) {
-    hoveredFamousStar = bestStar;
-    bestStar.label.visible = true;
+    hoveredAsterismStar = bestStar;
+    if (bestStar.label) {
+      bestStar.label.visible = true;
+    }
   }
 }
 
@@ -2233,12 +2317,12 @@ function updateAsterismHoverOverlay() {
     return;
   }
 
-  if (!hoveredFamousStar) {
+  if (!hoveredAsterismStar) {
     activeAsterism = null;
     return;
   }
 
-  const hoveredSourceId = String(hoveredFamousStar.sourceId || '').trim().toUpperCase();
+  const hoveredSourceId = String(hoveredAsterismStar.sourceId || '').trim().toUpperCase();
   const keys = asterismKeysBySourceId.get(hoveredSourceId) || [];
   if (keys.length === 0) {
     activeAsterism = null;
@@ -2621,6 +2705,7 @@ function onResize() {
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
   fisheyePostMaterial.uniforms.uAspect.value = window.innerWidth / Math.max(1, window.innerHeight);
+  updateAsterismLineMaterialResolutions();
   resizeLabelBoundsCanvas();
 }
 
