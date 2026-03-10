@@ -97,6 +97,59 @@ curl -I https://YOUR_HOST/zstarview-vr/data/cities-index-v2.json.gz
 
 Expected: HTTP 200 and a non-zero `Content-Length`.
 
+## Deployment
+
+This repository is configured to publish to GitHub Pages via GitHub Actions.
+
+Workflow file:
+
+- `.github/workflows/deploy-pages.yml`
+
+Behavior:
+
+- pushing to the `main` branch triggers the Pages workflow
+- the workflow runs `npm ci`
+- the workflow runs `npm run build`
+- the generated `dist/` directory is uploaded as the Pages artifact
+- GitHub Pages deploys the artifact automatically
+
+Recommended release flow:
+
+1. Ensure your changes are committed on a branch.
+2. Run a local production build:
+
+```bash
+npm run build
+```
+
+3. Review the generated output if needed.
+4. Merge or push the change to `main`.
+5. Open the Actions tab on GitHub and confirm that `Deploy To GitHub Pages` succeeded.
+6. Open the published site:
+
+```text
+https://tos-kamiya.github.io/zstarview-vr/
+```
+
+Post-deploy checks:
+
+- open the default URL and confirm the app loads
+- open a URL with location parameters such as `?city=Tokyo`
+- open a URL with an extended star setting such as `?maxMag=7`
+- verify that `data/cities-index-v2.json.gz` is reachable
+
+Example:
+
+```bash
+curl -I https://tos-kamiya.github.io/zstarview-vr/data/cities-index-v2.json.gz
+```
+
+Notes:
+
+- `vite.config.js` sets `base: '/zstarview-vr/'`, which must remain aligned with the GitHub Pages repository path.
+- Do not publish by uploading `dist/` manually unless you are intentionally bypassing the GitHub Actions workflow.
+- If `npm run build` changes generated assets, commit those generated files together with the source changes.
+
 ## Notes
 
 - Do not run `vite build` directly if `src/generated/` is missing.
