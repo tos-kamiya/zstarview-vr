@@ -66,6 +66,17 @@ const SOLAR_UPDATE_INTERVAL_MS = 500;
 const LABEL_LAYOUT_MAX_RADIUS_PX = 240;
 const LABEL_LAYOUT_RING_STEP_PX = 18;
 const LABEL_CANVAS_BASE_ASPECT = 512 / 192;
+const VR_CENTER_LABEL_ENTER_ANGLE_DEG = 4.4;
+const VR_CENTER_LABEL_EXIT_ANGLE_DEG = 5.0;
+const VR_CENTER_PANEL_DISTANCE_M = 50.0;
+const VR_CENTER_PANEL_REFERENCE_DISTANCE_M = 5.0;
+const VR_CENTER_PANEL_INNER_RADIUS_M = 0.4;
+const VR_CENTER_PANEL_OUTER_RADIUS_M = 1.5;
+const VR_CENTER_PANEL_SEGMENTS = 96;
+const VR_CENTER_TARGET_RING_SCALE = 8.8;
+const VR_CENTER_PANEL_LABEL_SCALE_X = 0.9;
+const VR_CENTER_PANEL_LABEL_SCALE_Y = 0.325;
+const VR_CENTER_PANEL_LABEL_MIN_SEPARATION_RAD = 0.34;
 const SHOW_LABEL_BOUNDS_DEBUG = false;
 const SHOW_LABEL_BOUNDS_DEBUG_3D = false;
 const SHOW_LABEL_BOUNDS_DEBUG_2D = false;
@@ -74,6 +85,8 @@ const COLORIZE_LABEL_SPRITES_DEBUG = false;
 const ENABLE_LABEL_RENDER = true;
 
 let pointerHoverCircles = [];
+let vrCenterTargetRings = [];
+let vrCenterPanelLabelSprites = [];
 let selectedStarObject = null;
 let hoveredAsterismStar = null;
 let asterismObjects = [];
@@ -157,6 +170,8 @@ scene.background = new THREE.Color(0x030711);
 
 const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 1000);
 camera.position.set(0, EYE_HEIGHT_M, 0);
+const vrCenterLabelPanel = new THREE.Group();
+vrCenterLabelPanel.visible = false;
 const fisheyeViewRotation = new THREE.Matrix3();
 const fisheyeViewRotationMatrix4 = new THREE.Matrix4();
 
@@ -230,6 +245,69 @@ scene.add(hemiLight);
 const dirLight = new THREE.DirectionalLight(0xd8e6ff, 0.26);
 dirLight.position.set(-2, 5, 2);
 scene.add(dirLight);
+scene.add(vrCenterLabelPanel);
+
+const vrCenterLabelPanelRing = new THREE.Mesh(
+  new THREE.RingGeometry(
+    VR_CENTER_PANEL_INNER_RADIUS_M,
+    VR_CENTER_PANEL_OUTER_RADIUS_M,
+    VR_CENTER_PANEL_SEGMENTS,
+  ),
+  new THREE.MeshBasicMaterial({
+    color: 0x7dc9ff,
+    transparent: true,
+    opacity: 0.026,
+    side: THREE.DoubleSide,
+    depthWrite: false,
+    depthTest: false,
+  })
+);
+vrCenterLabelPanelRing.renderOrder = 1000;
+vrCenterLabelPanel.add(vrCenterLabelPanelRing);
+
+const vrCenterLabelPanelInnerOutline = new THREE.LineLoop(
+  new THREE.BufferGeometry().setFromPoints(
+    Array.from({ length: VR_CENTER_PANEL_SEGMENTS }, (_, i) => {
+      const angle = (i / VR_CENTER_PANEL_SEGMENTS) * Math.PI * 2.0;
+      return new THREE.Vector3(
+        Math.cos(angle) * VR_CENTER_PANEL_INNER_RADIUS_M,
+        Math.sin(angle) * VR_CENTER_PANEL_INNER_RADIUS_M,
+        0,
+      );
+    }),
+  ),
+  new THREE.LineBasicMaterial({
+    color: 0xa9dcff,
+    transparent: true,
+    opacity: 0.06,
+    depthWrite: false,
+    depthTest: false,
+  })
+);
+vrCenterLabelPanelInnerOutline.renderOrder = 1001;
+vrCenterLabelPanel.add(vrCenterLabelPanelInnerOutline);
+
+const vrCenterLabelPanelOuterOutline = new THREE.LineLoop(
+  new THREE.BufferGeometry().setFromPoints(
+    Array.from({ length: VR_CENTER_PANEL_SEGMENTS }, (_, i) => {
+      const angle = (i / VR_CENTER_PANEL_SEGMENTS) * Math.PI * 2.0;
+      return new THREE.Vector3(
+        Math.cos(angle) * VR_CENTER_PANEL_OUTER_RADIUS_M,
+        Math.sin(angle) * VR_CENTER_PANEL_OUTER_RADIUS_M,
+        0,
+      );
+    }),
+  ),
+  new THREE.LineBasicMaterial({
+    color: 0xc7ebff,
+    transparent: true,
+    opacity: 0.09,
+    depthWrite: false,
+    depthTest: false,
+  })
+);
+vrCenterLabelPanelOuterOutline.renderOrder = 1001;
+vrCenterLabelPanel.add(vrCenterLabelPanelOuterOutline);
 
 function createControllerPointerLine() {
   const geometry = new THREE.BufferGeometry().setFromPoints([
@@ -368,6 +446,10 @@ function setLabelSpriteScale(sprite, baseScaleX, baseScaleY) {
   const aspect = w / h;
   const correctedX = baseScaleX * (aspect / LABEL_CANVAS_BASE_ASPECT);
   sprite.scale.set(correctedX, baseScaleY, 1.0);
+}
+
+function setVrCenterPanelLabelScale(sprite) {
+  setLabelSpriteScale(sprite, VR_CENTER_PANEL_LABEL_SCALE_X, VR_CENTER_PANEL_LABEL_SCALE_Y);
 }
 
 function ensureLabelBoundsLine(index) {
@@ -556,6 +638,160 @@ function worldUnitsPerPixelAt(pointWorld, cam, viewportHeightPx) {
   return visibleHeight / Math.max(1, viewportHeightPx);
 }
 
+function getLabelAnchorWorld(sprite) {
+  const anchorWorld = sprite?.userData?.anchorWorld;
+  if (anchorWorld instanceof THREE.Vector3) return anchorWorld.clone();
+  if (sprite?.position instanceof THREE.Vector3) return sprite.position.clone();
+  return null;
+}
+
+function getLabelTargetDirection(sprite) {
+  const anchorWorld = getLabelAnchorWorld(sprite);
+  if (!(anchorWorld instanceof THREE.Vector3)) return null;
+  if (anchorWorld.lengthSq() <= 0.0) return null;
+  return anchorWorld.normalize();
+}
+
+function getCurrentForwardDirection() {
+  const cam = renderer.xr.isPresenting ? renderer.xr.getCamera() : camera;
+  if (!cam) return new THREE.Vector3(0, 0, -1);
+  const worldQuat = new THREE.Quaternion().setFromRotationMatrix(cam.matrixWorld);
+  return new THREE.Vector3(0, 0, -1).applyQuaternion(worldQuat).normalize();
+}
+
+function classifyVrCenterLabelCandidate(candidate, forwardDirection) {
+  if (!renderer.xr.isPresenting || !(forwardDirection instanceof THREE.Vector3)) {
+    return { isCenterCandidate: false, angleDeg: null };
+  }
+
+  const targetDirection = candidate.targetWorldDirection;
+  if (!(targetDirection instanceof THREE.Vector3)) {
+    return { isCenterCandidate: false, angleDeg: null };
+  }
+
+  const dot = THREE.MathUtils.clamp(forwardDirection.dot(targetDirection), -1.0, 1.0);
+  const angleDeg = THREE.MathUtils.radToDeg(Math.acos(dot));
+  const wasCenterCandidate = candidate.sprite?.userData?.isVrCenterCandidate === true;
+  const thresholdDeg = wasCenterCandidate ? VR_CENTER_LABEL_EXIT_ANGLE_DEG : VR_CENTER_LABEL_ENTER_ANGLE_DEG;
+  return {
+    isCenterCandidate: angleDeg <= thresholdDeg,
+    angleDeg,
+  };
+}
+
+function isVrCenterPanelEligibleCandidate(candidate) {
+  if (!candidate?.isCenterCandidate) return false;
+  switch (candidate.kind) {
+    case 'sun':
+    case 'moon':
+    case 'planet':
+      return true;
+    default:
+      return false;
+  }
+}
+
+function shouldUseVrCenterPanelLabel(candidate) {
+  return renderer.xr.isPresenting && isVrCenterPanelEligibleCandidate(candidate);
+}
+
+function updateVrCenterLabelPanelState(candidates) {
+  if (!renderer.xr.isPresenting || !Array.isArray(candidates)) {
+    vrCenterLabelPanel.visible = false;
+    updateVrCenterTargetRings(null);
+    return;
+  }
+  vrCenterLabelPanel.visible = candidates.some((candidate) => isVrCenterPanelEligibleCandidate(candidate));
+}
+
+function updateVrCenterTargetRings(candidates) {
+  for (const ring of vrCenterTargetRings) {
+    ring.visible = false;
+  }
+  if (!renderer.xr.isPresenting || !Array.isArray(candidates)) return;
+
+  const targets = candidates.filter((candidate) => (
+    isVrCenterPanelEligibleCandidate(candidate)
+    && candidate.targetWorldPosition instanceof THREE.Vector3
+  ));
+
+  for (let i = 0; i < Math.min(vrCenterTargetRings.length, targets.length); i += 1) {
+    const ring = vrCenterTargetRings[i];
+    const target = targets[i];
+    ring.position.copy(target.targetWorldPosition);
+    ring.visible = true;
+  }
+}
+
+function updateVrCenterPanelLabels(candidates) {
+  for (const sprite of vrCenterPanelLabelSprites) {
+    sprite.visible = false;
+  }
+  if (!renderer.xr.isPresenting || !Array.isArray(candidates) || !vrCenterLabelPanel.visible) return;
+
+  const xrCam = renderer.xr.getCamera();
+  if (!xrCam) return;
+  const headQuat = new THREE.Quaternion().setFromRotationMatrix(xrCam.matrixWorld);
+  const invHeadQuat = headQuat.clone().invert();
+  const ringRadius = (VR_CENTER_PANEL_INNER_RADIUS_M + VR_CENTER_PANEL_OUTER_RADIUS_M) * 0.5;
+
+  const panelCandidates = candidates
+    .filter((candidate) => shouldUseVrCenterPanelLabel(candidate) && candidate.hudSprite)
+    .map((candidate) => {
+      const localDir = candidate.targetWorldDirection.clone().applyQuaternion(invHeadQuat).normalize();
+      const preferredAngle = Math.atan2(localDir.y, localDir.x);
+      return { ...candidate, preferredAngle, finalAngle: preferredAngle };
+    })
+    .sort((a, b) => a.preferredAngle - b.preferredAngle);
+
+  for (let i = 1; i < panelCandidates.length; i += 1) {
+    const prev = panelCandidates[i - 1];
+    const current = panelCandidates[i];
+    if ((current.finalAngle - prev.finalAngle) < VR_CENTER_PANEL_LABEL_MIN_SEPARATION_RAD) {
+      current.finalAngle = prev.finalAngle + VR_CENTER_PANEL_LABEL_MIN_SEPARATION_RAD;
+    }
+  }
+
+  const maxAngle = Math.PI * 2.0;
+  for (const candidate of panelCandidates) {
+    while (candidate.finalAngle > Math.PI) candidate.finalAngle -= maxAngle;
+  }
+  panelCandidates.sort((a, b) => a.priority - b.priority || a.order - b.order);
+
+  for (let i = 0; i < Math.min(vrCenterPanelLabelSprites.length, panelCandidates.length); i += 1) {
+    const candidate = panelCandidates[i];
+    const sprite = candidate.hudSprite;
+    if (!sprite) continue;
+    sprite.position.set(
+      Math.cos(candidate.finalAngle) * ringRadius,
+      Math.sin(candidate.finalAngle) * ringRadius,
+      0.002,
+    );
+    sprite.visible = true;
+  }
+}
+
+function updateVrCenterLabelPanelTransform() {
+  if (!renderer.xr.isPresenting || !vrCenterLabelPanel.visible) {
+    vrCenterLabelPanel.visible = false;
+    return;
+  }
+
+  const xrCam = renderer.xr.getCamera();
+  if (!xrCam) {
+    vrCenterLabelPanel.visible = false;
+    return;
+  }
+
+  const headPos = new THREE.Vector3().setFromMatrixPosition(xrCam.matrixWorld);
+  const headQuat = new THREE.Quaternion().setFromRotationMatrix(xrCam.matrixWorld);
+  const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(headQuat).normalize();
+  vrCenterLabelPanel.position.copy(headPos).add(forward.multiplyScalar(VR_CENTER_PANEL_DISTANCE_M));
+  vrCenterLabelPanel.quaternion.copy(headQuat);
+  const panelScale = VR_CENTER_PANEL_DISTANCE_M / VR_CENTER_PANEL_REFERENCE_DISTANCE_M;
+  vrCenterLabelPanel.scale.setScalar(panelScale);
+}
+
 function setLabelAnchor(sprite, position) {
   if (!ENABLE_LABEL_RENDER) {
     sprite.visible = false;
@@ -635,15 +871,6 @@ function createVrSplashSprite(text) {
   sprite.scale.set(isWarning ? 2.7 : 2.15, isWarning ? 1.25 : 0.58, 1.0);
   return sprite;
 }
-
-
-function getCurrentForwardDirection() {
-  const cam = renderer.xr.isPresenting ? renderer.xr.getCamera() : camera;
-  if (!cam) return new THREE.Vector3(0, 0, -1);
-  const worldQuat = new THREE.Quaternion().setFromRotationMatrix(cam.matrixWorld);
-  return new THREE.Vector3(0, 0, -1).applyQuaternion(worldQuat).normalize();
-}
-
 function updatePreviewDisplay() {
   selectedStarObject = vrMenu.getPreviewStarObject();
   starPreviewRenderer.setTarget(selectedStarObject);
@@ -1140,10 +1367,19 @@ const sunLabel = createTextSprite('Sun', 'rgba(255,228,166,0.98)');
 setLabelSpriteScale(sunLabel, LABEL_SCALE_X, LABEL_SCALE_Y);
 const moonLabel = createTextSprite('Moon', 'rgba(206,220,255,0.98)');
 setLabelSpriteScale(moonLabel, LABEL_SCALE_X, LABEL_SCALE_Y);
+const sunHudLabel = createTextSprite('Sun', 'rgba(255,228,166,0.98)');
+setVrCenterPanelLabelScale(sunHudLabel);
+sunHudLabel.visible = false;
+const moonHudLabel = createTextSprite('Moon', 'rgba(206,220,255,0.98)');
+setVrCenterPanelLabelScale(moonHudLabel);
+moonHudLabel.visible = false;
 solarSystemGroup.add(sunSprite);
 solarSystemGroup.add(moonSprite);
 solarSystemGroup.add(sunLabel);
 solarSystemGroup.add(moonLabel);
+vrCenterLabelPanel.add(sunHudLabel);
+vrCenterLabelPanel.add(moonHudLabel);
+vrCenterPanelLabelSprites.push(sunHudLabel, moonHudLabel);
 
 const cardinalDefs = [
   { label: 'N', az: 0.0 },
@@ -1177,9 +1413,14 @@ const planetObjects = planetDefs.map((def) => {
   marker.scale.set(1.0, 1.0, 1.0);
   const label = createTextSprite(def.label, PLANET_LABEL_COLOR);
   setLabelSpriteScale(label, LABEL_SCALE_X, LABEL_SCALE_Y);
+  const hudLabel = createTextSprite(def.label, PLANET_LABEL_COLOR);
+  setVrCenterPanelLabelScale(hudLabel);
+  hudLabel.visible = false;
   solarSystemGroup.add(marker);
   solarSystemGroup.add(label);
-  return { ...def, marker, label };
+  vrCenterLabelPanel.add(hudLabel);
+  vrCenterPanelLabelSprites.push(hudLabel);
+  return { ...def, marker, label, hudLabel };
 });
 
 function raDecToUnitVector(raHours, decDeg) {
@@ -1465,6 +1706,15 @@ for (let i = 0; i < 2; i += 1) {
   ring.renderOrder = 36;
   solarSystemGroup.add(ring);
   pointerHoverCircles.push(ring);
+}
+
+for (let i = 0; i < 6; i += 1) {
+  const ring = createCircleOutlineSprite('rgba(196, 232, 255, 0.96)');
+  ring.scale.set(VR_CENTER_TARGET_RING_SCALE, VR_CENTER_TARGET_RING_SCALE, 1.0);
+  ring.visible = false;
+  ring.renderOrder = 37;
+  solarSystemGroup.add(ring);
+  vrCenterTargetRings.push(ring);
 }
 
 const eclipticLine = buildLineOnSky(
@@ -1866,6 +2116,99 @@ function updateAsterismHoverOverlay() {
   asterismRenderer.updateHover(hoveredAsterismStar, ENABLE_LABEL_RENDER && displayOptions.asterisms);
 }
 
+function collectLabelLayoutCandidates() {
+  const candidates = [];
+  let displayOrder = 0;
+  const nowMs = performance.now();
+  const pushCandidate = (candidate) => {
+    candidates.push({ ...candidate, order: displayOrder });
+    displayOrder += 1;
+  };
+
+  if (sunSprite.visible) {
+    pushCandidate({
+      kind: 'sun',
+      sprite: sunLabel,
+      hudSprite: sunHudLabel,
+      priority: 0,
+      hideOnOverlap: false,
+      targetWorldPosition: sunSprite.position.clone(),
+      targetWorldDirection: getLabelTargetDirection(sunLabel),
+    });
+  }
+  if (moonSprite.visible) {
+    pushCandidate({
+      kind: 'moon',
+      sprite: moonLabel,
+      hudSprite: moonHudLabel,
+      priority: 0,
+      hideOnOverlap: false,
+      targetWorldPosition: moonSprite.position.clone(),
+      targetWorldDirection: getLabelTargetDirection(moonLabel),
+    });
+  }
+  for (let i = 0; i < planetObjects.length; i += 1) {
+    const p = planetObjects[i];
+    // Keep planet labels visible in close conjunctions by allowing fallback placement.
+    if (p.marker.visible) {
+      pushCandidate({
+        kind: 'planet',
+        sprite: p.label,
+        hudSprite: p.hudLabel,
+        priority: 1,
+        hideOnOverlap: false,
+        targetWorldPosition: p.marker.position.clone(),
+        targetWorldDirection: getLabelTargetDirection(p.label),
+      });
+    }
+  }
+  const activeAsterismLabel = asterismRenderer.getActiveAsterism()?.label;
+  if (activeAsterismLabel?.visible) {
+    pushCandidate({
+      kind: 'asterism',
+      sprite: activeAsterismLabel,
+      priority: 2,
+      hideOnOverlap: false,
+      targetWorldDirection: getLabelTargetDirection(activeAsterismLabel),
+    });
+  }
+  for (const dso of dsoObjects) {
+    if (dso.label.visible) {
+      pushCandidate({
+        kind: 'dso',
+        sprite: dso.label,
+        priority: 3,
+        hideOnOverlap: false,
+        targetWorldDirection: getLabelTargetDirection(dso.label),
+      });
+    }
+  }
+  for (const star of famousStarObjects) {
+    if (star.label.visible) {
+      pushCandidate({
+        kind: 'named-star',
+        sprite: star.label,
+        priority: 4,
+        hideOnOverlap: false,
+        isSelected: star === selectedStarObject,
+        isHighlighted: hoveredAsterismStar === star || star.highlightUntilMs > nowMs,
+        targetWorldPosition: star.worldDirection.clone().multiplyScalar(SYMBOL_RADIUS),
+        targetWorldDirection: getLabelTargetDirection(star.label),
+      });
+    }
+  }
+
+  candidates.sort((a, b) => {
+    const pa = Number.isFinite(a.priority) ? a.priority : 999;
+    const pb = Number.isFinite(b.priority) ? b.priority : 999;
+    if (pa !== pb) return pa - pb;
+    const oa = Number.isFinite(a.order) ? a.order : 0;
+    const ob = Number.isFinite(b.order) ? b.order : 0;
+    return oa - ob;
+  });
+  return candidates;
+}
+
 function applyLabelLayout() {
   if (!ENABLE_LABEL_RENDER) {
     hideUnusedLabelBounds(0);
@@ -1877,45 +2220,25 @@ function applyLabelLayout() {
 
   const viewportWidth = renderer.domElement?.width || window.innerWidth;
   const viewportHeight = renderer.domElement?.height || window.innerHeight;
-
-  const candidates = [];
-  let displayOrder = 0;
-  const pushCandidate = (candidate) => {
-    candidates.push({ ...candidate, order: displayOrder });
-    displayOrder += 1;
-  };
-
-  if (sunLabel.visible) pushCandidate({ sprite: sunLabel, priority: 0, hideOnOverlap: false });
-  if (moonLabel.visible) pushCandidate({ sprite: moonLabel, priority: 0, hideOnOverlap: false });
-  for (let i = 0; i < planetObjects.length; i += 1) {
-    const p = planetObjects[i];
-    // Keep planet labels visible in close conjunctions by allowing fallback placement.
-    if (p.label.visible) pushCandidate({ sprite: p.label, priority: 1, hideOnOverlap: false });
-  }
-  const activeAsterismLabel = asterismRenderer.getActiveAsterism()?.label;
-  if (activeAsterismLabel?.visible) pushCandidate({ sprite: activeAsterismLabel, priority: 2, hideOnOverlap: false });
-  for (const dso of dsoObjects) {
-    if (dso.label.visible) pushCandidate({ sprite: dso.label, priority: 3, hideOnOverlap: false });
-  }
-  for (const star of famousStarObjects) {
-    if (star.label.visible) pushCandidate({ sprite: star.label, priority: 4, hideOnOverlap: false });
-  }
-
-  candidates.sort((a, b) => {
-    const pa = Number.isFinite(a.priority) ? a.priority : 999;
-    const pb = Number.isFinite(b.priority) ? b.priority : 999;
-    if (pa !== pb) return pa - pb;
-    const oa = Number.isFinite(a.order) ? a.order : 0;
-    const ob = Number.isFinite(b.order) ? b.order : 0;
-    return oa - ob;
-  });
+  const candidates = collectLabelLayoutCandidates();
+  const forwardDirection = renderer.xr.isPresenting ? getCurrentForwardDirection() : null;
   const debugRectIndex = 0;
   const debugRects2d = [];
 
   for (const cand of candidates) {
     const sprite = cand.sprite;
-    const anchorWorld = sprite.userData?.anchorWorld;
-    const basePos = (anchorWorld instanceof THREE.Vector3 ? anchorWorld : sprite.position).clone();
+    const centerState = classifyVrCenterLabelCandidate(cand, forwardDirection);
+    cand.isCenterCandidate = centerState.isCenterCandidate;
+    cand.centerAngleDeg = centerState.angleDeg;
+    sprite.userData.isVrCenterCandidate = centerState.isCenterCandidate;
+    sprite.userData.vrCenterAngleDeg = centerState.angleDeg;
+
+    const basePos = getLabelAnchorWorld(sprite);
+    if (!(basePos instanceof THREE.Vector3)) {
+      sprite.visible = false;
+      sprite.userData.layoutOffsetPx = null;
+      continue;
+    }
     const baseProjection = projectToScreen(basePos, cam, viewportWidth, viewportHeight);
     if (!baseProjection) {
       sprite.visible = false;
@@ -1924,8 +2247,12 @@ function applyLabelLayout() {
     }
     sprite.position.copy(basePos);
     sprite.userData.layoutOffsetPx = [0, 0];
-    sprite.visible = true;
+    sprite.visible = !shouldUseVrCenterPanelLabel(cand);
   }
+
+  updateVrCenterLabelPanelState(candidates);
+  updateVrCenterTargetRings(candidates);
+  updateVrCenterPanelLabels(candidates);
 
   hideUnusedLabelBounds(debugRectIndex);
   drawLabelBoundsOverlay(debugRects2d);
@@ -2269,6 +2596,8 @@ renderer.setAnimationLoop((_time, xrFrame) => {
         safeCall('updateMenuPointerHover', () => vrMenu.updatePointerHover());
       }
 
+      safeCall('updateVrCenterLabelPanelTransform', () => updateVrCenterLabelPanelTransform());
+
       if (vrSplashSprite) {
         if (nowMs > vrSplashUntilMs) {
           clearVrSplash();
@@ -2289,6 +2618,9 @@ renderer.setAnimationLoop((_time, xrFrame) => {
           vrSplashSprite.quaternion.copy(headQuat);
         }
       }
+    } else {
+      vrCenterLabelPanel.visible = false;
+      updateVrCenterTargetRings(null);
     }
 
     if (forceLabelRelayout || (nowMs - lastLabelLayoutMs) >= LABEL_LAYOUT_INTERVAL_MS) {
