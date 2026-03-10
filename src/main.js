@@ -66,8 +66,8 @@ const SOLAR_UPDATE_INTERVAL_MS = 500;
 const LABEL_LAYOUT_MAX_RADIUS_PX = 240;
 const LABEL_LAYOUT_RING_STEP_PX = 18;
 const LABEL_CANVAS_BASE_ASPECT = 512 / 192;
-const VR_CENTER_LABEL_ENTER_ANGLE_DEG = 4.4;
-const VR_CENTER_LABEL_EXIT_ANGLE_DEG = 5.0;
+const VR_CENTER_LABEL_ENTER_ANGLE_DEG = 2.2;
+const VR_CENTER_LABEL_EXIT_ANGLE_DEG = 2.5;
 const VR_CENTER_PANEL_DISTANCE_M = 50.0;
 const VR_CENTER_PANEL_REFERENCE_DISTANCE_M = 5.0;
 const VR_CENTER_PANEL_INNER_RADIUS_M = 0.4;
@@ -256,7 +256,7 @@ const vrCenterLabelPanelRing = new THREE.Mesh(
   new THREE.MeshBasicMaterial({
     color: 0x7dc9ff,
     transparent: true,
-    opacity: 0.026,
+    opacity: 0.012,
     side: THREE.DoubleSide,
     depthWrite: false,
     depthTest: false,
@@ -279,7 +279,7 @@ const vrCenterLabelPanelInnerOutline = new THREE.LineLoop(
   new THREE.LineBasicMaterial({
     color: 0xa9dcff,
     transparent: true,
-    opacity: 0.06,
+    opacity: 0.03,
     depthWrite: false,
     depthTest: false,
   })
@@ -301,7 +301,7 @@ const vrCenterLabelPanelOuterOutline = new THREE.LineLoop(
   new THREE.LineBasicMaterial({
     color: 0xc7ebff,
     transparent: true,
-    opacity: 0.09,
+    opacity: 0.045,
     depthWrite: false,
     depthTest: false,
   })
@@ -345,6 +345,7 @@ for (let i = 0; i < 2; i += 1) {
   });
   controller.addEventListener('disconnected', (event) => {
     pointerLine.visible = false;
+    controller.userData.isSelecting = false;
     if (leftController === controller) {
       leftController = null;
     }
@@ -354,7 +355,11 @@ for (let i = 0; i < 2; i += 1) {
     vrMenu.handleControllerDisconnected(controller);
   });
   controller.addEventListener('selectstart', () => {
+    controller.userData.isSelecting = true;
     vrMenu.handleControllerSelect(controller);
+  });
+  controller.addEventListener('selectend', () => {
+    controller.userData.isSelecting = false;
   });
   vrControllers.push(controller);
   scene.add(controller);
@@ -659,6 +664,23 @@ function getCurrentForwardDirection() {
   return new THREE.Vector3(0, 0, -1).applyQuaternion(worldQuat).normalize();
 }
 
+function getControllerWorldRayDirection(controller) {
+  if (!controller) return null;
+  const worldQuat = new THREE.Quaternion().setFromRotationMatrix(controller.matrixWorld);
+  return new THREE.Vector3(0, 0, -1).applyQuaternion(worldQuat).normalize();
+}
+
+function getVrCenterReferenceDirection() {
+  if (!renderer.xr.isPresenting) return getCurrentForwardDirection();
+  for (const controller of vrControllers) {
+    if (controller?.userData?.isSelecting) {
+      const rayDir = getControllerWorldRayDirection(controller);
+      if (rayDir instanceof THREE.Vector3) return rayDir;
+    }
+  }
+  return getCurrentForwardDirection();
+}
+
 function classifyVrCenterLabelCandidate(candidate, forwardDirection) {
   if (!renderer.xr.isPresenting || !(forwardDirection instanceof THREE.Vector3)) {
     return { isCenterCandidate: false, angleDeg: null };
@@ -807,8 +829,8 @@ function updateVrCenterLabelPanelTransform() {
 
   const headPos = new THREE.Vector3().setFromMatrixPosition(xrCam.matrixWorld);
   const headQuat = new THREE.Quaternion().setFromRotationMatrix(xrCam.matrixWorld);
-  const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(headQuat).normalize();
-  vrCenterLabelPanel.position.copy(headPos).add(forward.multiplyScalar(VR_CENTER_PANEL_DISTANCE_M));
+  const referenceDir = getVrCenterReferenceDirection();
+  vrCenterLabelPanel.position.copy(headPos).add(referenceDir.multiplyScalar(VR_CENTER_PANEL_DISTANCE_M));
   vrCenterLabelPanel.quaternion.copy(headQuat);
   const panelScale = VR_CENTER_PANEL_DISTANCE_M / VR_CENTER_PANEL_REFERENCE_DISTANCE_M;
   vrCenterLabelPanel.scale.setScalar(panelScale);
@@ -2133,9 +2155,6 @@ function updateFamousStarHoverLabels(xrFrame) {
 
   if (bestStar) {
     hoveredAsterismStar = bestStar;
-    if (bestStar.label) {
-      bestStar.label.visible = true;
-    }
   }
 }
 
@@ -2256,7 +2275,7 @@ function applyLabelLayout() {
   const viewportWidth = renderer.domElement?.width || window.innerWidth;
   const viewportHeight = renderer.domElement?.height || window.innerHeight;
   const candidates = collectLabelLayoutCandidates();
-  const forwardDirection = renderer.xr.isPresenting ? getCurrentForwardDirection() : null;
+  const forwardDirection = renderer.xr.isPresenting ? getVrCenterReferenceDirection() : null;
   const debugRectIndex = 0;
   const debugRects2d = [];
 
