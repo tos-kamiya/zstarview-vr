@@ -551,6 +551,34 @@ function createCrossMarkerSprite(strokeStyle = 'rgba(235, 240, 255, 0.98)') {
   return new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false }));
 }
 
+function createGaugeCrossSprite(strokeStyle = 'rgba(235, 240, 255, 0.98)') {
+  const cnv = document.createElement('canvas');
+  cnv.width = 512;
+  cnv.height = 512;
+  const ctx = cnv.getContext('2d');
+  const cx = cnv.width / 2;
+  const cy = cnv.height / 2;
+  const outer = 400;
+  const inner = 80;
+  ctx.clearRect(0, 0, cnv.width, cnv.height);
+  ctx.strokeStyle = strokeStyle;
+  ctx.lineWidth = 10;
+  ctx.beginPath();
+  ctx.moveTo(cx - outer, cy);
+  ctx.lineTo(cx - inner, cy);
+  ctx.moveTo(cx + inner, cy);
+  ctx.lineTo(cx + outer, cy);
+  ctx.moveTo(cx, cy - outer);
+  ctx.lineTo(cx, cy - inner);
+  ctx.moveTo(cx, cy + inner);
+  ctx.lineTo(cx, cy + outer);
+  ctx.stroke();
+  const texture = new THREE.CanvasTexture(cnv);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.needsUpdate = true;
+  return new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false }));
+}
+
 function createCircleOutlineSprite(strokeStyle) {
   const cnv = document.createElement('canvas');
   cnv.width = 256;
@@ -1405,8 +1433,10 @@ labelBoundsGroup = new THREE.Group();
 labelBoundsGroup.visible = SHOW_LABEL_BOUNDS_DEBUG && SHOW_LABEL_BOUNDS_DEBUG_3D;
 solarSystemGroup.add(labelBoundsGroup);
 
-const sunSprite = createCircleOutlineSprite('rgba(255, 214, 120, 0.98)');
-const moonSprite = createCircleOutlineSprite('rgba(206, 220, 255, 0.98)');
+const sunSprite = createGaugeCrossSprite('rgba(255, 214, 120, 0.98)');
+sunSprite.scale.set(17.6, 17.6, 1.0);
+const moonSprite = createGaugeCrossSprite('rgba(206, 220, 255, 0.98)');
+moonSprite.scale.set(17.6, 17.6, 1.0);
 const sunLabel = createTextSprite('Sun', 'rgba(255,228,166,0.98)');
 setLabelSpriteScale(sunLabel, LABEL_SCALE_X, LABEL_SCALE_Y);
 const moonLabel = createTextSprite('Moon', 'rgba(206,220,255,0.98)');
@@ -1455,16 +1485,19 @@ const planetDefs = [
 const planetObjects = planetDefs.map((def) => {
   const marker = createDiskSprite(def.color);
   marker.scale.set(1.0, 1.0, 1.0);
+  const crosshair = createGaugeCrossSprite('rgba(232, 240, 255, 0.98)');
+  crosshair.scale.set(10.8, 10.8, 1.0);
   const label = createTextSprite(def.label, PLANET_LABEL_COLOR);
   setLabelSpriteScale(label, LABEL_SCALE_X, LABEL_SCALE_Y);
   const hudLabel = createTextSprite(def.label, PLANET_LABEL_COLOR);
   setVrCenterPanelLabelScale(hudLabel);
   hudLabel.visible = false;
   solarSystemGroup.add(marker);
+  solarSystemGroup.add(crosshair);
   solarSystemGroup.add(label);
   vrCenterLabelPanel.add(hudLabel);
   vrCenterPanelLabelSprites.push(hudLabel);
-  return { ...def, marker, label, hudLabel };
+  return { ...def, marker, crosshair, label, hudLabel };
 });
 
 function raDecToUnitVector(raHours, decDeg) {
@@ -1937,10 +1970,7 @@ function updateSolarSystemMarkers() {
   const moonPos = placeBodySprite({ body: 'Moon', sprite: moonSprite, alwaysVisible: true });
 
   if (sunSprite.visible && sunPos && Number.isFinite(sunPos.dist)) {
-    const deg = angularDiameterDeg(1392700.0, sunPos.dist);
-    const scale = spriteScaleFromAngularDiameter(deg, SYMBOL_RADIUS);
-    sunSprite.scale.set(scale, scale, 1.0);
-    sunLabel.visible = true;
+    sunLabel.visible = false;
     setLabelAnchor(sunLabel, altAzToVector(sunPos.altitude + LABEL_ALT_OFFSET_DEG, sunPos.azimuth, SYMBOL_RADIUS));
     const sunDir = altAzToVector(sunPos.altitude, sunPos.azimuth, 1.0).normalize();
     skyMaterial.uniforms.uSunDir.value.copy(sunDir);
@@ -1953,10 +1983,9 @@ function updateSolarSystemMarkers() {
   if (moonSprite.visible && moonPos && Number.isFinite(moonPos.dist)) {
     const deg = angularDiameterDeg(3474.8, moonPos.dist);
     const scale = spriteScaleFromAngularDiameter(deg, SYMBOL_RADIUS);
-    moonSprite.scale.set(scale, scale, 1.0);
-    moonLabel.visible = true;
+    moonLabel.visible = false;
     setLabelAnchor(moonLabel, altAzToVector(moonPos.altitude + LABEL_ALT_OFFSET_DEG, moonPos.azimuth, SYMBOL_RADIUS));
-        zenithMarker.scale.set(scale, scale, 1.0);
+    zenithMarker.scale.set(scale, scale, 1.0);
     nadirMarker.scale.set(scale, scale, 1.0);
     updateHorizonTicksByAngularSize(deg * 2.0);
   } else {
@@ -1970,6 +1999,7 @@ function updateSolarSystemMarkers() {
   for (const planet of planetObjects) {
     const pos = placeBodySprite({ body: planet.body, sprite: planet.marker, alwaysVisible: true });
     if (!planet.marker.visible || !pos) {
+      planet.crosshair.visible = false;
       planet.label.visible = false;
       continue;
     }
@@ -1985,7 +2015,9 @@ function updateSolarSystemMarkers() {
       planet.marker.scale.set(1.5 * PLANET_MARKER_SCALE, 1.5 * PLANET_MARKER_SCALE, 1.0);
     }
 
-    planet.label.visible = true;
+    planet.crosshair.visible = true;
+    planet.crosshair.position.copy(planet.marker.position);
+    planet.label.visible = false;
     const labelPos = altAzToVector(pos.altitude + LABEL_ALT_OFFSET_DEG, pos.azimuth, SYMBOL_RADIUS);
     setLabelAnchor(planet.label, labelPos);
   }
@@ -2176,7 +2208,7 @@ function collectLabelLayoutCandidates() {
       kind: 'sun',
       sprite: sunLabel,
       hudSprite: sunHudLabel,
-      baseVisible: true,
+      baseVisible: false,
       priority: 0,
       hideOnOverlap: false,
       targetWorldPosition: sunSprite.position.clone(),
@@ -2188,7 +2220,7 @@ function collectLabelLayoutCandidates() {
       kind: 'moon',
       sprite: moonLabel,
       hudSprite: moonHudLabel,
-      baseVisible: true,
+      baseVisible: false,
       priority: 0,
       hideOnOverlap: false,
       targetWorldPosition: moonSprite.position.clone(),
@@ -2203,7 +2235,7 @@ function collectLabelLayoutCandidates() {
         kind: 'planet',
         sprite: p.label,
         hudSprite: p.hudLabel,
-        baseVisible: true,
+        baseVisible: false,
         priority: 1,
         hideOnOverlap: false,
         targetWorldPosition: p.marker.position.clone(),
