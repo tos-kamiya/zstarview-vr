@@ -734,15 +734,41 @@ function updateVrCenterPanelLabels(candidates) {
   const headQuat = new THREE.Quaternion().setFromRotationMatrix(xrCam.matrixWorld);
   const invHeadQuat = headQuat.clone().invert();
   const ringRadius = (VR_CENTER_PANEL_INNER_RADIUS_M + VR_CENTER_PANEL_OUTER_RADIUS_M) * 0.5;
+  const topAngle = Math.PI * 0.5;
 
   const panelCandidates = candidates
     .filter((candidate) => shouldUseVrCenterPanelLabel(candidate) && candidate.hudSprite)
     .map((candidate) => {
       const localDir = candidate.targetWorldDirection.clone().applyQuaternion(invHeadQuat).normalize();
-      const preferredAngle = Math.atan2(localDir.y, localDir.x);
-      return { ...candidate, preferredAngle, finalAngle: preferredAngle };
-    })
-    .sort((a, b) => a.preferredAngle - b.preferredAngle);
+      return { ...candidate, localDir, preferredAngle: topAngle, finalAngle: topAngle };
+    });
+
+  if (panelCandidates.length === 1) {
+    panelCandidates[0].preferredAngle = topAngle;
+    panelCandidates[0].finalAngle = topAngle;
+  } else if (panelCandidates.length > 1) {
+    let centroidX = 0.0;
+    let centroidY = 0.0;
+    for (const candidate of panelCandidates) {
+      centroidX += candidate.localDir.x;
+      centroidY += candidate.localDir.y;
+    }
+    centroidX /= panelCandidates.length;
+    centroidY /= panelCandidates.length;
+
+    for (let i = 0; i < panelCandidates.length; i += 1) {
+      const candidate = panelCandidates[i];
+      const relX = candidate.localDir.x - centroidX;
+      const relY = candidate.localDir.y - centroidY;
+      const relLenSq = relX * relX + relY * relY;
+      const preferredAngle = relLenSq > 1.0e-8
+        ? Math.atan2(relY, relX)
+        : (topAngle + (i - ((panelCandidates.length - 1) * 0.5)) * VR_CENTER_PANEL_LABEL_MIN_SEPARATION_RAD);
+      candidate.preferredAngle = preferredAngle;
+      candidate.finalAngle = preferredAngle;
+    }
+    panelCandidates.sort((a, b) => a.preferredAngle - b.preferredAngle);
+  }
 
   for (let i = 1; i < panelCandidates.length; i += 1) {
     const prev = panelCandidates[i - 1];
@@ -750,11 +776,6 @@ function updateVrCenterPanelLabels(candidates) {
     if ((current.finalAngle - prev.finalAngle) < VR_CENTER_PANEL_LABEL_MIN_SEPARATION_RAD) {
       current.finalAngle = prev.finalAngle + VR_CENTER_PANEL_LABEL_MIN_SEPARATION_RAD;
     }
-  }
-
-  const maxAngle = Math.PI * 2.0;
-  for (const candidate of panelCandidates) {
-    while (candidate.finalAngle > Math.PI) candidate.finalAngle -= maxAngle;
   }
   panelCandidates.sort((a, b) => a.priority - b.priority || a.order - b.order);
 
