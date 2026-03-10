@@ -82,6 +82,22 @@ Location resolution priority:
 If `city` is not found (or city index loading fails), the app falls back to default (`Tokyo`) and explicitly shows the fallback reason in status/splash text.
 If `country` is also specified, city lookup is filtered by that country code (ISO 3166-1 alpha-2, e.g. `JP`, `US`).
 
+## Feature: VR Center Label Ring Panel
+
+In VR, `zstarview-vr` now includes a center label ring panel that reduces label clutter near the current target area.
+
+- When the Sun, Moon, planets, or named stars enter the center target zone, their labels move from the sky into a transparent donut-shaped HUD panel.
+- If only one object is active, its ring label stays at the top of the panel to reduce motion.
+- If multiple objects are active, labels are placed around the ring from their relative directions within the current group.
+- While a controller trigger is held, the center target zone and the ring panel follow the controller pointing direction.
+- The sky target itself is reinforced with target rings, while the panel remains intentionally very faint.
+
+Related marker behavior:
+
+- Sun and Moon use crosshair-style gauge markers.
+- Planets use their existing marker plus a crosshair-style gauge marker.
+- Solar-system labels are no longer shown as always-on world labels; they are shown through the center panel when relevant.
+
 ## Feature: VR Menu / Jump to Star
 
 The VR variant keeps the existing interaction model ("the user turns to face the target") and does not forcibly rotate the sky.
