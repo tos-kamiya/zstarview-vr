@@ -685,6 +685,7 @@ function isVrCenterPanelEligibleCandidate(candidate) {
     case 'sun':
     case 'moon':
     case 'planet':
+    case 'named-star':
       return true;
     default:
       return false;
@@ -1621,9 +1622,14 @@ const famousStarObjects = FAMOUS_STARS.map((def) => {
   setLabelSpriteScale(label, FAMOUS_LABEL_SCALE_X, LABEL_SCALE_Y);
   setLabelAnchor(label, worldDirection.clone().multiplyScalar(SYMBOL_RADIUS));
   label.visible = false;
+  const hudLabel = createTextSprite(def.name, 'rgba(234,242,255,0.98)');
+  setVrCenterPanelLabelScale(hudLabel);
+  hudLabel.visible = false;
   solarSystemGroup.add(label);
+  vrCenterLabelPanel.add(hudLabel);
+  vrCenterPanelLabelSprites.push(hudLabel);
 
-  return { ...def, equatorialDirection, worldDirection, label, highlightUntilMs: 0 };
+  return { ...def, equatorialDirection, worldDirection, label, hudLabel, highlightUntilMs: 0 };
 });
 const famousSourceIds = new Set(
   famousStarObjects
@@ -1729,7 +1735,7 @@ for (let i = 0; i < 2; i += 1) {
   pointerHoverCircles.push(ring);
 }
 
-for (let i = 0; i < 6; i += 1) {
+for (let i = 0; i < 10; i += 1) {
   const ring = createCircleOutlineSprite('rgba(196, 232, 255, 0.96)');
   ring.scale.set(VR_CENTER_TARGET_RING_SCALE, VR_CENTER_TARGET_RING_SCALE, 1.0);
   ring.visible = false;
@@ -2151,6 +2157,7 @@ function collectLabelLayoutCandidates() {
       kind: 'sun',
       sprite: sunLabel,
       hudSprite: sunHudLabel,
+      baseVisible: true,
       priority: 0,
       hideOnOverlap: false,
       targetWorldPosition: sunSprite.position.clone(),
@@ -2162,6 +2169,7 @@ function collectLabelLayoutCandidates() {
       kind: 'moon',
       sprite: moonLabel,
       hudSprite: moonHudLabel,
+      baseVisible: true,
       priority: 0,
       hideOnOverlap: false,
       targetWorldPosition: moonSprite.position.clone(),
@@ -2176,6 +2184,7 @@ function collectLabelLayoutCandidates() {
         kind: 'planet',
         sprite: p.label,
         hudSprite: p.hudLabel,
+        baseVisible: true,
         priority: 1,
         hideOnOverlap: false,
         targetWorldPosition: p.marker.position.clone(),
@@ -2188,6 +2197,7 @@ function collectLabelLayoutCandidates() {
     pushCandidate({
       kind: 'asterism',
       sprite: activeAsterismLabel,
+      baseVisible: true,
       priority: 2,
       hideOnOverlap: false,
       targetWorldDirection: getLabelTargetDirection(activeAsterismLabel),
@@ -2198,6 +2208,7 @@ function collectLabelLayoutCandidates() {
       pushCandidate({
         kind: 'dso',
         sprite: dso.label,
+        baseVisible: true,
         priority: 3,
         hideOnOverlap: false,
         targetWorldDirection: getLabelTargetDirection(dso.label),
@@ -2205,10 +2216,13 @@ function collectLabelLayoutCandidates() {
     }
   }
   for (const star of famousStarObjects) {
-    if (star.label.visible) {
+    const baseVisible = star.label.visible;
+    if (baseVisible || renderer.xr.isPresenting) {
       pushCandidate({
         kind: 'named-star',
         sprite: star.label,
+        hudSprite: star.hudLabel,
+        baseVisible,
         priority: 4,
         hideOnOverlap: false,
         isSelected: star === selectedStarObject,
@@ -2268,7 +2282,7 @@ function applyLabelLayout() {
     }
     sprite.position.copy(basePos);
     sprite.userData.layoutOffsetPx = [0, 0];
-    sprite.visible = !shouldUseVrCenterPanelLabel(cand);
+    sprite.visible = Boolean(cand.baseVisible) && !shouldUseVrCenterPanelLabel(cand);
   }
 
   updateVrCenterLabelPanelState(candidates);
