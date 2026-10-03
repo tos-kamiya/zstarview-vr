@@ -45,8 +45,8 @@ This file is the orchestration center of the application.
 
 - [src/menu/vr-menu.js](/home/toshihiro/playground/zstarview-vr/src/menu/vr-menu.js)
   - menu state, panel rendering, hover and selection logic, controller input integration
-- [src/menu/star-preview.js](/home/toshihiro/playground/zstarview-vr/src/menu/star-preview.js)
-  - guidance arc and target marker for the currently previewed or selected star
+- [src/sky/gaia-background.js](/home/toshihiro/playground/zstarview-vr/src/sky/gaia-background.js)
+  - bundled Gaia texture loading and Galactic-coordinate background material
 - [src/asterisms/catalog.js](/home/toshihiro/playground/zstarview-vr/src/asterisms/catalog.js)
   - static asterism definitions
 - [src/asterisms/runtime.js](/home/toshihiro/playground/zstarview-vr/src/asterisms/runtime.js)
@@ -66,6 +66,10 @@ This file is the orchestration center of the application.
   - gzip variant of the city index
 - `public/data/dso.csv`
   - deep-sky object source catalog loaded directly at runtime
+- `public/data/gaia-edr3-colour-2048x1024.png`
+  - bundled Gaia EDR3 diffuse all-sky display texture in Galactic coordinates
+- `public/data/gaia-edr3-colour-manifest.json`
+  - texture projection, source, credit, and license metadata
 
 ## 4. Build-Time Data Pipeline
 
@@ -163,14 +167,16 @@ The Three.js scene is composed from a few conceptual groups.
 
 - sky sphere
   - background dome centered on the viewer
+- Gaia sphere
+  - translucent Galactic-coordinate texture, behind stars and celestial objects
 - star meshes
   - one mesh per generated star layer
 - solar-system group
-  - planets, Sun, Moon, labels, asterism lines, preview arc, target markers
+  - planets, Sun, Moon, labels, asterism lines, and interaction target rings
 - DSO group
   - deep-sky markers and labels
-- horizon group
-  - horizon ring, ticks, and related reference markers
+- sky-guide group
+  - horizon ring and ticks, cardinal labels, zenith/nadir, celestial poles, equator, ecliptic, and never-rises boundary
 
 In both desktop and XR rendering, the sky and celestial groups are repositioned around the current camera so the user remains visually centered inside the celestial sphere.
 
@@ -183,13 +189,23 @@ Examples:
 - current observer and active location
 - currently loaded star magnitude tier
 - XR session and controller references
-- selected star and hovered asterism star
-- visibility flags for DSO and asterisms
+- hovered asterism star
+- visibility flags for DSO, asterisms, diffuse sky, and guides
 - lazy-load promises for binary assets
 
 This is simple and direct, but it also means state ownership is centralized rather than encapsulated in domain-specific controllers.
 
-### 5.4 Data Loading Strategy
+### 5.4 Sky Coordinates and Moon Phase
+
+The Gaia map is sampled after converting the world direction through the current world-to-equatorial transform and the fixed J2000 ICRS-to-Galactic rotation. Its equirectangular texture uses Galactic longitude increasing to the left. The background follows the observer position without translation parallax and shares one material between both XR eyes.
+
+The Moon is a small plane tangent to its sky direction. Its local axes follow projected celestial north and east; a shader evaluates the spherical terminator against the projected Sun direction. The scene update uses one timestamp for Sun, Moon, planets, and phase. A 1.8 multiplier enlarges the computed angular diameter for readability.
+
+Guide geometry is grouped independently from Gaia, asterisms, and DSO visibility. The never-rises boundary follows declination `latitude - 90°` in the northern hemisphere and `latitude + 90°` in the southern hemisphere. At the equator the non-rising region contracts to a celestial pole, so no boundary line is drawn.
+
+### 5.5 Data Loading Strategy
+
+The Gaia texture is optional and loaded from the site's bundled `public/data` asset. Failure leaves the base sky available and is reported in the status area.
 
 ### Base and Extended Star Assets
 
@@ -208,7 +224,7 @@ This is simple and direct, but it also means state ownership is centralized rath
 - Loaded from CSV at runtime.
 - Parsed into runtime objects used for markers, hover outlines, and labels.
 
-### 5.5 Coordinate and Astronomy Pipeline
+### 5.6 Coordinate and Astronomy Pipeline
 
 The runtime uses multiple coordinate transformations.
 
@@ -220,7 +236,7 @@ The runtime uses multiple coordinate transformations.
 
 This separation is important because astronomical calculations operate in sky coordinate systems, while rendering and label placement operate in scene or screen space.
 
-### 5.6 Input Model
+### 5.7 Input Model
 
 ### Desktop Input
 
@@ -238,7 +254,7 @@ This separation is important because astronomical calculations operate in sky co
 
 The menu module owns most menu interaction logic, but `main.js` remains responsible for calling it at the correct time in the render loop.
 
-### 5.7 Render Loop Responsibilities
+### 5.8 Render Loop Responsibilities
 
 The animation loop in `src/main.js` performs incremental updates.
 
@@ -250,7 +266,6 @@ Core responsibilities:
 - update pointer hover circles
 - update hover labels for DSO, famous stars, and asterisms
 - refresh label layout
-- refresh the selected-star guidance arc when needed
 - update or dismiss the VR splash
 - render normally or through the fisheye path depending on mode
 
@@ -270,21 +285,11 @@ Notable design choices:
 - controller-specific opening determines left or right side offset
 - desktop mode reuses the same logical menu structure
 
-The module exposes a narrow API back to `main.js`, including methods for toggling visibility, processing controller input, updating transform, updating hover state, and retrieving preview state.
+The module exposes a narrow API back to `main.js`, including methods for toggling visibility, processing controller input, updating transform, and updating hover state.
 
-### 6.2 Star Preview
+### 6.2 Gaia Background
 
-`createStarPreviewRenderer()` in [src/menu/star-preview.js](/home/toshihiro/playground/zstarview-vr/src/menu/star-preview.js) isolates the selected-star guidance visuals.
-
-Responsibilities:
-
-- maintain the current target star
-- draw a circular highlight around the target
-- draw a great-circle-like arc from the current forward direction toward the target
-- refresh only the arc when the viewer direction changes
-- cleanly dispose geometry and materials when the preview changes
-
-This extraction reduced rendering clutter in `main.js` without changing the core interaction model.
+`createGaiaBackground()` in `src/sky/gaia-background.js` owns the locally bundled texture and Galactic-coordinate sampling shader. The shared background mesh is centered on the viewer and placed behind the stars. The renderer uses one texture and material for both XR eyes.
 
 ### 6.3 Asterism Runtime and Rendering
 
@@ -375,7 +380,7 @@ Still excluded:
 - asterism labels
 - asterism highlight rendering
 - DSO label routing
-- selected-star guidance arc logic
+- named-star menu selection and guidance
 - desktop mono and fisheye panel rendering
 
 ### 10.4 Candidate Data Model
@@ -442,7 +447,7 @@ This design reduces unnecessary label motion compared with direct view-angle tra
 
 The solar-system presentation was also adjusted together with the ring panel:
 
-- Sun and Moon now use crosshair-style gauge markers
+- The Sun uses a crosshair-style gauge marker; the Moon uses a white-and-black phase disc
 - planets use their existing marker plus a crosshair-style gauge marker
 - Sun, Moon, and planet labels are no longer treated as always-on world labels
 - those labels are shown through the center ring panel when relevant

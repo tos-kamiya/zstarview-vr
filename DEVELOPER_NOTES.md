@@ -10,13 +10,15 @@
 - `src/`: app source code
 - `src/main.js`: app bootstrap and top-level render/update orchestration
 - `src/menu/vr-menu.js`: VR menu state, panel drawing, and pointer/trigger interaction
-- `src/menu/star-preview.js`: `Jump to Star` preview arc and target marker rendering
+- `src/sky/gaia-background.js`: Gaia texture loading and Galactic-coordinate background material
 - `src/asterisms/catalog.js`: imported asterism definitions
 - `src/asterisms/runtime.js`: source-id to runtime-star resolution for asterisms
 - `src/asterisms/render.js`: ambient/highlight asterism line rendering
 - `data/stars.csv`: input star catalog
 - `data/cities1000.txt`: input city catalog (GeoNames-derived)
 - `public/data/dso.csv`: input deep-sky-object catalog (OpenNGC-derived)
+- `public/data/gaia-edr3-colour-2048x1024.png`: bundled Gaia EDR3 diffuse sky texture
+- `public/data/gaia-edr3-colour-manifest.json`: Gaia texture projection and attribution metadata
 - `scripts/generate-stars-data.mjs`: generator for star binary chunks
 - `scripts/generate-cities-data.mjs`: generator for `public/data/cities-index-v2.json`
 - `scripts/generate-cities-gzip.mjs`: generator for `public/data/cities-index-v2.json.gz`
@@ -88,6 +90,12 @@ The app first requests `public/data/cities-index-v2.json.gz` and decompresses it
 If that fails (unsupported browser or missing `.gz`), it falls back to `cities-index-v2.json`.
 
 This means server-side gzip settings are optional for city index loading.
+
+## Gaia Background Asset
+
+The Gaia EDR3 all-sky texture is served from `public/data/gaia-edr3-colour-2048x1024.png`; the runtime does not download it from an external service. It is an equirectangular map in Galactic coordinates. Preserve `gaia-edr3-colour-manifest.json` with the image when replacing or regenerating the asset.
+
+Credit: ESA/Gaia/DPAC, with acknowledgement to A. Moitinho. The source metadata records CC BY-SA 3.0 IGO or ESA Standard Licence. The local map was copied from the desktop project's packaged 2048×1024 output without an additional display-mapping pass.
 
 Quick check after deploy:
 
@@ -170,6 +178,14 @@ Rule:
 - If you change city generator scripts, also regenerate and commit `public/data/cities-index-v2.json.gz`.
 
 ## Recent Updates
+
+### 2026-10-03
+
+- Removed the named-star search page and its selected-target marker and guidance arc. Named-star data remains for labels and asterisms.
+- Added the bundled Galactic-coordinate Gaia background and `Diffuse sky` toggle.
+- Added a white-and-black Moon phase disc with a 1.8× angular-size readability multiplier.
+- Added the `Sky Guides` toggle, celestial-pole markers, and the latitude-dependent never-rises boundary.
+- The optional atmosphere-model port remains a separate future workstream.
 
 ### v0.8.0 (2026-03-06)
 

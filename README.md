@@ -94,26 +94,27 @@ In VR, `zstarview-vr` now includes a center label ring panel that reduces label 
 
 Related marker behavior:
 
-- Sun and Moon use crosshair-style gauge markers.
+- The Sun uses a crosshair-style gauge marker; the Moon uses its phase disc.
 - Planets use their existing marker plus a crosshair-style gauge marker.
 - Solar-system labels are no longer shown as always-on world labels; they are shown through the center panel when relevant.
 
-## Feature: VR Menu / Jump to Star
-
-The VR variant keeps the existing interaction model ("the user turns to face the target") and does not forcibly rotate the sky.
+## Feature: VR Menu / Display Options
 
 - **Entry point**: Press the Menu button on either VR controller (or `M` on desktop) to open the menu.
-- **Top level**: The menu currently contains `Jump to Star`, `Display Options`, and `About`.
-- **Hover and select**: In VR, point at a menu item to hover it, then press the trigger to activate it. Hover and selected states are drawn differently.
+- **Top level**: The menu contains `Display Options` and `About`.
+- **Hover and select**: In VR, point at a menu item to hover it, then press the trigger to activate it.
 - **Display Options**:
   - `Asterisms` toggles the ambient/highlighted asterism overlay.
   - `DSO` toggles deep-sky-object markers and labels.
+  - `Diffuse sky` toggles the bundled Gaia EDR3 all-sky background.
+  - `Sky Guides` toggles the horizon references, celestial poles, equator, ecliptic, and never-rises boundary.
   - Toggle items show their current state with `☑` / `☐`.
-- **Jump to Star behavior**:
-  - When the star list first opens, no star is selected yet.
-  - While no star is selected, the arc and target marker follow the star currently hovered in the menu.
-  - After pressing the trigger on a star, that star becomes the active selection and the arc/marker stay locked to it until the menu is closed.
-- **Exit Menu**: Press the Menu button again to close the menu. Closing the menu clears the current Jump to Star selection.
+- **Moon**: Shown as a white disc with a black unilluminated region. Its phase and orientation use the same observation time as the solar-system positions; its rendered diameter uses a documented 1.8× readability scale.
+
+The Gaia texture is an equirectangular Galactic-coordinate map and is bundled locally. It fades in daylight and is rendered behind stars and celestial objects. If the image cannot load, the star scene remains available and the status reports the missing layer.
+
+`Sky Guides` also includes north and south celestial-pole markers. The never-rises boundary follows the observer's hemisphere and latitude; at the equator it collapses to a pole and is omitted.
+Named-star search and persistent selected-target guidance have been removed; named-star labels and asterism pointing highlights remain.
 
 ## Feature: Asterism Overlay (Imported from zstarview)
 

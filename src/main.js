@@ -5,7 +5,7 @@ import { ASTERISM_DEFS } from './asterisms/catalog.js';
 import { buildAsterismsFromStars } from './asterisms/runtime.js';
 import { createAsterismRenderer } from './asterisms/render.js';
 import { createVrMenu } from './menu/vr-menu.js';
-import { createStarPreviewRenderer } from './menu/star-preview.js';
+import { createGaiaBackground, loadGaiaTexture } from './sky/gaia-background.js';
 import packageJson from '../package.json';
 
 const DEFAULT_LOCATION = {
@@ -42,6 +42,7 @@ const EXTRA8_BIN_URL = `${import.meta.env.BASE_URL}data/stars-data-extra-8.bin`;
 const EXTRA9_BIN_URL = `${import.meta.env.BASE_URL}data/stars-data-extra-9.bin`;
 const EXTRA10_BIN_URL = `${import.meta.env.BASE_URL}data/stars-data-extra-10.bin`;
 const DSO_CSV_URL = `${import.meta.env.BASE_URL}data/dso.csv`;
+const GAIA_BACKGROUND_URL = `${import.meta.env.BASE_URL}data/gaia-edr3-colour-2048x1024.png`;
 const DEFAULT_MAX_MAG = 6.0;
 const EXTENDED_MAX_MAG_7 = 7.0;
 const EXTENDED_MAX_MAG_8 = 8.0;
@@ -87,7 +88,6 @@ const ENABLE_LABEL_RENDER = true;
 let pointerHoverCircles = [];
 let vrCenterTargetRings = [];
 let vrCenterPanelLabelSprites = [];
-let selectedStarObject = null;
 let hoveredAsterismStar = null;
 let asterismObjects = [];
 let asterismKeysBySourceId = new Map();
@@ -100,6 +100,8 @@ let labelBoundsCtx = null;
 const displayOptions = {
   asterisms: true,
   dso: true,
+  diffuseSky: true,
+  skyGuides: true,
 };
 
 const canvas = document.getElementById('scene');
@@ -943,14 +945,6 @@ function createVrSplashSprite(text) {
   sprite.scale.set(isWarning ? 2.7 : 2.15, isWarning ? 1.25 : 0.58, 1.0);
   return sprite;
 }
-function updatePreviewDisplay() {
-  selectedStarObject = vrMenu.getPreviewStarObject();
-  starPreviewRenderer.setTarget(selectedStarObject);
-  starPreviewRenderer.refresh();
-}
-
-
-
 function altAzToVector(altDeg, azDeg, radius) {
   const alt = THREE.MathUtils.degToRad(altDeg);
   const az = THREE.MathUtils.degToRad(azDeg);
@@ -982,9 +976,6 @@ function createSkyMaterial() {
       uSunDir: { value: new THREE.Vector3(0, 1, 0) },
       uSunAltDeg: { value: -90.0 },
       uTurbidity: { value: 4.0 },
-      uWorldToEquatorial: { value: new THREE.Matrix3() },
-      uNeverRisesThresholdDeg: { value: -54.0 },
-      uNeverRisesMode: { value: 1.0 },
       uGroundMaskStrength: { value: 0.30 },
     },
     vertexShader: `
@@ -999,9 +990,6 @@ function createSkyMaterial() {
       uniform vec3 uSunDir;
       uniform float uSunAltDeg;
       uniform float uTurbidity;
-      uniform mat3 uWorldToEquatorial;
-      uniform float uNeverRisesThresholdDeg;
-      uniform float uNeverRisesMode;
       uniform float uGroundMaskStrength;
 
       float luma(vec3 c) {
@@ -1046,20 +1034,6 @@ function createSkyMaterial() {
 
         float maxLuma = 0.28 + 0.20 * sunUp;
         color = softClipLuma(color, maxLuma);
-        color = clamp(color, 0.0, 1.0);
-
-        vec3 eqDir = normalize(uWorldToEquatorial * dir);
-        float decDeg = degrees(asin(clamp(eqDir.y, -1.0, 1.0)));
-        float neverRisesMask = 0.0;
-        if (uNeverRisesMode > 0.0) {
-          // Northern hemisphere: never rises when dec <= (lat - 90).
-          neverRisesMask = step(decDeg, uNeverRisesThresholdDeg);
-        } else {
-          // Southern hemisphere: never rises when dec >= (lat + 90).
-          neverRisesMask = step(uNeverRisesThresholdDeg, decDeg);
-        }
-        vec3 neverRisesTint = vec3(0.42, 0.07, 0.07);
-        color = mix(color, color + neverRisesTint, 0.08 * neverRisesMask);
         color = clamp(color, 0.0, 1.0);
 
         // Darken the lower hemisphere (alt < 0) without a physical ground disc.
@@ -1216,8 +1190,24 @@ const sky = new THREE.Mesh(
   new THREE.SphereGeometry(SKY_RADIUS, 96, 64),
   skyMaterial
 );
+sky.renderOrder = -20;
 sky.position.set(0, EYE_HEIGHT_M, 0);
 scene.add(sky);
+let gaiaBackground = null;
+let gaiaBackgroundFailed = false;
+
+async function loadGaiaBackground() {
+  try {
+    const texture = await loadGaiaTexture(GAIA_BACKGROUND_URL);
+    gaiaBackground = createGaiaBackground(texture);
+    gaiaBackground.visible = displayOptions.diffuseSky;
+    scene.add(gaiaBackground);
+  } catch (error) {
+    console.warn('Diffuse sky background unavailable:', error);
+    gaiaBackgroundFailed = true;
+    setStatus('Diffuse sky unavailable; continuing with star field');
+  }
+}
 
 const dsoGroup = new THREE.Group();
 dsoGroup.renderOrder = -10;
@@ -1380,7 +1370,9 @@ const equatorialRotation = new THREE.Quaternion();
 const equatorialBasisMatrix = new THREE.Matrix4();
 const worldToEquatorialMatrix3 = new THREE.Matrix3();
 const horizonGroup = new THREE.Group();
-scene.add(horizonGroup);
+const skyGuideGroup = new THREE.Group();
+scene.add(skyGuideGroup);
+skyGuideGroup.add(horizonGroup);
 
 const horizonRadius = SYMBOL_RADIUS - 2;
 const horizonPoints = [];
@@ -1435,8 +1427,30 @@ solarSystemGroup.add(labelBoundsGroup);
 
 const sunSprite = createGaugeCrossSprite('rgba(255, 214, 120, 0.98)');
 sunSprite.scale.set(17.6, 17.6, 1.0);
-const moonSprite = createGaugeCrossSprite('rgba(206, 220, 255, 0.98)');
-moonSprite.scale.set(17.6, 17.6, 1.0);
+const moonSprite = new THREE.Mesh(
+  new THREE.PlaneGeometry(1, 1),
+  new THREE.ShaderMaterial({
+    uniforms: { uSunDirection: { value: new THREE.Vector3(1, 0, 0) } },
+    vertexShader: `varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+    fragmentShader: `
+      varying vec2 vUv;
+      uniform vec3 uSunDirection;
+      void main() {
+        vec2 p = (vUv - 0.5) * 2.0;
+        float r2 = dot(p, p);
+        if (r2 > 1.0) discard;
+        vec3 normal = vec3(p, sqrt(max(0.0, 1.0 - r2)));
+        float lit = step(0.0, dot(normal, normalize(uSunDirection)));
+        gl_FragColor = vec4(vec3(lit), 1.0);
+      }
+    `,
+    side: THREE.DoubleSide,
+    transparent: true,
+    depthWrite: false,
+    depthTest: false,
+  }),
+);
+moonSprite.renderOrder = 4;
 const sunLabel = createTextSprite('Sun', 'rgba(255,228,166,0.98)');
 setLabelSpriteScale(sunLabel, LABEL_SCALE_X, LABEL_SCALE_Y);
 const moonLabel = createTextSprite('Moon', 'rgba(206,220,255,0.98)');
@@ -1469,7 +1483,7 @@ for (const d of cardinalDefs) {
   const label = createTextSprite(d.label, 'rgba(156, 230, 182, 0.98)');
   setLabelSpriteScale(label, LABEL_SCALE_X, LABEL_SCALE_Y);
   setLabelAnchor(label, altAzToVector(0.0, d.az, SYMBOL_RADIUS));
-  solarSystemGroup.add(label);
+  skyGuideGroup.add(label);
 }
 
 const planetDefs = [
@@ -1702,34 +1716,19 @@ const asterismOnlyStarObjects = ASTERISM_STARS
   });
 const asterismStarObjects = [...famousStarObjects, ...asterismOnlyStarObjects];
 const hoverSelectableStarObjects = asterismStarObjects;
-const starPreviewRenderer = createStarPreviewRenderer({
-  solarSystemGroup,
-  symbolRadius: SYMBOL_RADIUS,
-  createCircleOutlineSprite,
-  getCurrentForwardDirection,
-  setStatus,
-  arcConfig: {
-    minSegments: 64,
-    maxSegments: 96,
-    widthDeg: 0.2,
-    skipThresholdDeg: 1.0,
-  },
-});
 const vrMenu = createVrMenu({
   scene,
   renderer,
   appVersion: APP_VERSION,
-  famousStarObjects,
   getDisplayOptions: () => displayOptions,
   onToggleDisplayOption: (optionKey) => {
     if (!(optionKey in displayOptions)) return;
     displayOptions[optionKey] = !displayOptions[optionKey];
     applyDisplayOptions();
-    setStatus(`${optionKey === 'dso' ? 'DSO' : 'Asterisms'} ${displayOptions[optionKey] ? 'shown' : 'hidden'}`);
+    const optionLabels = { dso: 'DSO', asterisms: 'Asterisms', diffuseSky: 'Diffuse sky', skyGuides: 'Sky Guides' };
+    setStatus(`${optionLabels[optionKey] || optionKey} ${displayOptions[optionKey] ? 'shown' : 'hidden'}`);
   },
-  setStatus,
   createCircleOutlineSprite,
-  onStateChange: () => updatePreviewDisplay(),
 });
 ({ asterismObjects, asterismKeysBySourceId } = buildAsterismsFromStars({
   definitions: ASTERISM_DEFS,
@@ -1767,6 +1766,8 @@ function applyDisplayOptions() {
     }
   }
   asterismRenderer.setVisible(displayOptions.asterisms);
+  skyGuideGroup.visible = displayOptions.skyGuides;
+  if (gaiaBackground) gaiaBackground.visible = displayOptions.diffuseSky;
 }
 
 applyDisplayOptions();
@@ -1774,12 +1775,31 @@ applyDisplayOptions();
 const zenithMarker = createCrossMarkerSprite('rgba(210, 244, 255, 0.96)');
 zenithMarker.scale.set(4.2, 4.2, 1.0);
 zenithMarker.position.set(0, SYMBOL_RADIUS, 0);
-solarSystemGroup.add(zenithMarker);
+skyGuideGroup.add(zenithMarker);
 
 const nadirMarker = createCrossMarkerSprite('rgba(210, 244, 255, 0.96)');
 nadirMarker.scale.set(4.2, 4.2, 1.0);
 nadirMarker.position.set(0, -SYMBOL_RADIUS, 0);
-solarSystemGroup.add(nadirMarker);
+skyGuideGroup.add(nadirMarker);
+
+const celestialPoleMarkers = [90, -90].map((decDeg) => {
+  const marker = createCrossMarkerSprite('rgba(190, 222, 255, 0.95)');
+  marker.scale.set(5.4, 5.4, 1.0);
+  skyGuideGroup.add(marker);
+  return { decDeg, marker };
+});
+const neverRisesGeometry = new THREE.BufferGeometry();
+const neverRisesBoundary = new THREE.LineLoop(
+  neverRisesGeometry,
+  new THREE.LineBasicMaterial({
+    color: 0xc27d83,
+    transparent: true,
+    opacity: 0.72,
+    depthTest: false,
+    depthWrite: false,
+  }),
+);
+skyGuideGroup.add(neverRisesBoundary);
 
 for (let i = 0; i < 2; i += 1) {
   const ring = createCircleOutlineSprite('rgba(255, 255, 255, 0.98)');
@@ -1816,7 +1836,7 @@ const eclipticLine = buildLineOnSky(
     depthTest: false,
   })
 );
-solarSystemGroup.add(eclipticLine);
+skyGuideGroup.add(eclipticLine);
 
 const celestialEquatorLine = buildLineOnSky(
   240,
@@ -1834,10 +1854,9 @@ const celestialEquatorLine = buildLineOnSky(
     depthTest: false,
   })
 );
-solarSystemGroup.add(celestialEquatorLine);
+skyGuideGroup.add(celestialEquatorLine);
 
-function rebuildReferenceLines() {
-  const now = new Date();
+function rebuildReferenceLines(now) {
   const eclPts = [];
   for (let i = 0; i < 360; i += 1) {
     const lon = (i / 360) * 360.0;
@@ -1883,15 +1902,28 @@ function updateStarfieldOrientation(when) {
   }
 
   worldToEquatorialMatrix3.setFromMatrix4(equatorialBasisMatrix).invert();
-  skyMaterial.uniforms.uWorldToEquatorial.value.copy(worldToEquatorialMatrix3);
+  if (gaiaBackground) {
+    gaiaBackground.material.uniforms.uWorldToEquatorial.value.copy(worldToEquatorialMatrix3);
+  }
 
   const lat = activeLocation.lat;
-  if (lat >= 0.0) {
-    skyMaterial.uniforms.uNeverRisesMode.value = 1.0;
-    skyMaterial.uniforms.uNeverRisesThresholdDeg.value = lat - 90.0;
+
+  for (const pole of celestialPoleMarkers) {
+    const poleEq = raDecToUnitVector(0, pole.decDeg);
+    const poleWorld = poleEq.applyQuaternion(equatorialRotation).normalize();
+    pole.marker.position.copy(poleWorld.multiplyScalar(SYMBOL_RADIUS));
+  }
+  const boundaryDec = lat >= 0 ? lat - 90 : lat + 90;
+  if (Math.abs(lat) < 1e-5) {
+    neverRisesBoundary.visible = false;
   } else {
-    skyMaterial.uniforms.uNeverRisesMode.value = -1.0;
-    skyMaterial.uniforms.uNeverRisesThresholdDeg.value = lat + 90.0;
+    const boundaryPoints = [];
+    for (let ra = 0; ra < 360; ra += 1) {
+      const { alt, az } = raDecToAltAz(ra / 15, boundaryDec, when, observer);
+      boundaryPoints.push(altAzToVector(alt, az, SYMBOL_RADIUS - 0.8));
+    }
+    neverRisesGeometry.setFromPoints(boundaryPoints);
+    neverRisesBoundary.visible = true;
   }
 
   for (const star of famousStarObjects) {
@@ -1939,8 +1971,8 @@ function updateStarfieldOrientation(when) {
   }
 }
 
-function placeBodySprite({ body, sprite, minAlt = -0.8, alwaysVisible = false }) {
-  const now = new Date();
+function placeBodySprite({ body, sprite, when, minAlt = -0.8, alwaysVisible = false }) {
+  const now = when;
   const equ = Astronomy.Equator(body, now, observer, true, true);
   const hor = Astronomy.Horizon(now, observer, equ.ra, equ.dec, 'normal');
 
@@ -1965,9 +1997,10 @@ function placeBodySprite({ body, sprite, minAlt = -0.8, alwaysVisible = false })
 function updateSolarSystemMarkers() {
   const now = new Date();
   updateStarfieldOrientation(now);
+  rebuildReferenceLines(now);
 
-  const sunPos = placeBodySprite({ body: 'Sun', sprite: sunSprite, alwaysVisible: true });
-  const moonPos = placeBodySprite({ body: 'Moon', sprite: moonSprite, alwaysVisible: true });
+  const sunPos = placeBodySprite({ body: 'Sun', sprite: sunSprite, when: now, alwaysVisible: true });
+  const moonPos = placeBodySprite({ body: 'Moon', sprite: moonSprite, when: now, alwaysVisible: true });
 
   if (sunSprite.visible && sunPos && Number.isFinite(sunPos.dist)) {
     sunLabel.visible = false;
@@ -1975,6 +2008,7 @@ function updateSolarSystemMarkers() {
     const sunDir = altAzToVector(sunPos.altitude, sunPos.azimuth, 1.0).normalize();
     skyMaterial.uniforms.uSunDir.value.copy(sunDir);
     skyMaterial.uniforms.uSunAltDeg.value = sunPos.altitude;
+    if (gaiaBackground) gaiaBackground.material.uniforms.uSunAltitude.value = sunPos.altitude;
   } else {
     sunLabel.visible = false;
     skyMaterial.uniforms.uSunAltDeg.value = -90.0;
@@ -1983,6 +2017,19 @@ function updateSolarSystemMarkers() {
   if (moonSprite.visible && moonPos && Number.isFinite(moonPos.dist)) {
     const deg = angularDiameterDeg(3474.8, moonPos.dist);
     const scale = spriteScaleFromAngularDiameter(deg, SYMBOL_RADIUS);
+    moonSprite.scale.set(scale, scale, 1.0);
+    const moonDirection = altAzToVector(moonPos.altitude, moonPos.azimuth, 1.0).normalize();
+    const sunDirection = altAzToVector(sunPos.altitude, sunPos.azimuth, 1.0).normalize();
+    const north = raDecToUnitVector(0, 90).applyQuaternion(equatorialRotation);
+    north.addScaledVector(moonDirection, -north.dot(moonDirection)).normalize();
+    const east = new THREE.Vector3().crossVectors(north, moonDirection).normalize();
+    const discBasis = new THREE.Matrix4().makeBasis(east, north, moonDirection);
+    moonSprite.setRotationFromMatrix(discBasis);
+    moonSprite.material.uniforms.uSunDirection.value.set(
+      sunDirection.dot(east),
+      sunDirection.dot(north),
+      -sunDirection.dot(moonDirection),
+    ).normalize();
     moonLabel.visible = false;
     setLabelAnchor(moonLabel, altAzToVector(moonPos.altitude + LABEL_ALT_OFFSET_DEG, moonPos.azimuth, SYMBOL_RADIUS));
     zenithMarker.scale.set(scale, scale, 1.0);
@@ -1997,7 +2044,7 @@ function updateSolarSystemMarkers() {
   }
 
   for (const planet of planetObjects) {
-    const pos = placeBodySprite({ body: planet.body, sprite: planet.marker, alwaysVisible: true });
+    const pos = placeBodySprite({ body: planet.body, sprite: planet.marker, when: now, alwaysVisible: true });
     if (!planet.marker.visible || !pos) {
       planet.crosshair.visible = false;
       planet.label.visible = false;
@@ -2022,7 +2069,6 @@ function updateSolarSystemMarkers() {
     setLabelAnchor(planet.label, labelPos);
   }
 
-  rebuildReferenceLines();
 }
 
 function getControllerRayDirections(xrFrame) {
@@ -2157,7 +2203,7 @@ function updateFamousStarHoverLabels(xrFrame) {
     return;
   }
   const nowMs = performance.now();
-  const shouldKeepVisible = (star) => star.highlightUntilMs > nowMs || (vrMenu.isVisible() && star === selectedStarObject);
+  const shouldKeepVisible = (star) => star.highlightUntilMs > nowMs;
   if (!renderer.xr.isPresenting) {
     for (const star of famousStarObjects) {
       star.label.visible = shouldKeepVisible(star);
@@ -2276,7 +2322,6 @@ function collectLabelLayoutCandidates() {
         baseVisible,
         priority: 4,
         hideOnOverlap: false,
-        isSelected: star === selectedStarObject,
         isHighlighted: hoveredAsterismStar === star || star.highlightUntilMs > nowMs,
         targetWorldPosition: star.worldDirection.clone().multiplyScalar(SYMBOL_RADIUS),
         targetWorldDirection: getLabelTargetDirection(star.label),
@@ -2648,10 +2693,6 @@ renderer.setAnimationLoop((_time, xrFrame) => {
       forceLabelRelayout = true;
     }
 
-    if (vrMenu.isVisible() && selectedStarObject) {
-      safeCall('refreshStarPreviewArc', () => starPreviewRenderer.refreshArc());
-    }
-
     // Keep sky and stars centered around the observer.
     if (!renderer.xr.isPresenting) {
       sky.position.copy(camera.position);
@@ -2660,7 +2701,8 @@ renderer.setAnimationLoop((_time, xrFrame) => {
       }
       dsoGroup.position.copy(camera.position);
       solarSystemGroup.position.copy(camera.position);
-      horizonGroup.position.copy(camera.position);
+      skyGuideGroup.position.copy(camera.position);
+      if (gaiaBackground) gaiaBackground.position.copy(camera.position);
       if (vrMenu.isVisible()) {
         safeCall('updateMenuPanelTransformDesktop', () => vrMenu.updateTransform(camera, leftController, rightController));
       }
@@ -2674,7 +2716,8 @@ renderer.setAnimationLoop((_time, xrFrame) => {
       }
       dsoGroup.position.copy(sky.position);
       solarSystemGroup.position.copy(sky.position);
-      horizonGroup.position.copy(sky.position);
+      skyGuideGroup.position.copy(sky.position);
+      if (gaiaBackground) gaiaBackground.position.copy(sky.position);
 
       safeCall('processMenuButtonInput', () => vrMenu.processGamepadInput({ session, leftController, rightController, xrCamera: xrCam }));
       if (vrMenu.isVisible() && xrCam) {
@@ -2772,6 +2815,7 @@ async function initializeLocation() {
 
 async function bootstrap() {
   setStatus('Loading base star data...');
+  void loadGaiaBackground();
   try {
     await ensureBaseStarsLoaded();
     await ensureDsoLoaded();
@@ -2781,6 +2825,9 @@ async function bootstrap() {
   }
   await initializeLocation();
   await prepareVrButton();
+  if (gaiaBackgroundFailed) {
+    setStatus('Diffuse sky unavailable; continuing with star field');
+  }
 }
 
 void bootstrap();

@@ -15,21 +15,16 @@ const MENU_PANEL_CANVAS_WIDTH = 512;
 const MENU_PANEL_CANVAS_HEIGHT = 1120;
 const MENU_PANEL_MENU_START_Y = 280;
 const MENU_ROW_HEIGHT = 84;
-const MENU_VISIBLE_STAR_LIMIT = 10;
 const MENU_ITEM_FONT = '42px "Noto Sans JP", "Noto Sans", sans-serif';
 
 export function createVrMenu({
   scene,
   renderer,
   appVersion,
-  famousStarObjects,
   getDisplayOptions,
   onToggleDisplayOption,
-  setStatus,
   createCircleOutlineSprite,
-  onStateChange,
 }) {
-  const menuStarEntries = famousStarObjects.slice(0, MENU_VISIBLE_STAR_LIMIT);
   const menuPanelCanvas = document.createElement('canvas');
   menuPanelCanvas.width = MENU_PANEL_CANVAS_WIDTH;
   menuPanelCanvas.height = MENU_PANEL_CANVAS_HEIGHT;
@@ -53,18 +48,11 @@ export function createVrMenu({
   let thumbstickDebounceTimer = 0;
   let activeController = null;
 
-  const notifyStateChange = () => {
-    if (typeof onStateChange === 'function') onStateChange();
-  };
-
   function updateMenuPanelTexture() {
     const cnv = menuPanelCanvas;
     const ctx = menuPanelCtx;
     const bgColor = MENU_PANEL_COLOR.getStyle ? MENU_PANEL_COLOR.getStyle() : '#030711';
-    const showPersistentSelection = menuPage === 'stars';
-    const title = menuPage === 'stars'
-      ? 'Jump to Star'
-      : (menuPage === 'about' ? 'About' : (menuPage === 'display' ? 'Display Options' : 'Menu'));
+    const title = menuPage === 'about' ? 'About' : (menuPage === 'display' ? 'Display Options' : 'Menu');
     const helpLines = menuPage === 'root'
       ? ['Menu: Button', 'Point: Hover item', 'Trigger: Open / Select']
       : ['Menu: Button to close', 'Trigger: Select'];
@@ -94,22 +82,18 @@ export function createVrMenu({
     let entryY = MENU_PANEL_MENU_START_Y;
 
     menuPanelEntries.forEach((entry, index) => {
-      if (showPersistentSelection && index === menuSelectedIndex) {
-        ctx.fillStyle = 'rgba(240, 244, 248, 0.24)';
-        ctx.fillRect(MENU_PANEL_PADDING / 2, entryY - 4, cnv.width - MENU_PANEL_PADDING, MENU_ROW_HEIGHT);
-      }
       if (index === menuHoveredIndex) {
         ctx.strokeStyle = 'rgba(255, 255, 255, 0.95)';
         ctx.lineWidth = 3;
         ctx.strokeRect(MENU_PANEL_PADDING / 2 + 2, entryY - 2, cnv.width - MENU_PANEL_PADDING - 4, MENU_ROW_HEIGHT - 4);
       }
-      ctx.fillStyle = index === menuHoveredIndex ? '#ffffff' : ((showPersistentSelection && index === menuSelectedIndex) ? 'rgba(240,246,250,0.96)' : MENU_PANEL_TEXT_COLOR);
+      ctx.fillStyle = index === menuHoveredIndex ? '#ffffff' : MENU_PANEL_TEXT_COLOR;
       const prefix = entry.checked == null ? '' : `${entry.checked ? '☑' : '☐'} `;
       const text = `${prefix}${entry.label ?? entry.name ?? ''}`;
       ctx.fillText(text, MENU_PANEL_PADDING, entryY);
       if (entry.detail) {
         ctx.font = '18px "Noto Sans JP", "Noto Sans", sans-serif';
-        ctx.fillStyle = index === menuHoveredIndex ? '#ffffff' : ((showPersistentSelection && index === menuSelectedIndex) ? 'rgba(240,246,250,0.92)' : MENU_PANEL_TEXT_MUTED);
+        ctx.fillStyle = index === menuHoveredIndex ? '#ffffff' : MENU_PANEL_TEXT_MUTED;
         ctx.fillText(entry.detail, MENU_PANEL_PADDING + 12, entryY + 22);
         ctx.font = MENU_ITEM_FONT;
       }
@@ -131,20 +115,18 @@ export function createVrMenu({
 
   function buildMenuEntriesForPage(page) {
     const displayOptions = typeof getDisplayOptions === 'function' ? getDisplayOptions() : {};
-    if (page === 'stars') {
-      return menuStarEntries.map((star) => ({ key: `star:${star.name}`, label: star.name, action: 'star', star }));
-    }
     if (page === 'display') {
       return [
         { key: 'toggle:asterisms', label: 'Asterisms', action: 'toggle', optionKey: 'asterisms', checked: displayOptions.asterisms !== false },
         { key: 'toggle:dso', label: 'DSO', action: 'toggle', optionKey: 'dso', checked: displayOptions.dso !== false },
+        { key: 'toggle:diffuseSky', label: 'Diffuse sky', action: 'toggle', optionKey: 'diffuseSky', checked: displayOptions.diffuseSky !== false },
+        { key: 'toggle:skyGuides', label: 'Sky Guides', action: 'toggle', optionKey: 'skyGuides', checked: displayOptions.skyGuides !== false },
       ];
     }
     if (page === 'about') {
       return [{ key: 'version', label: `Version ${appVersion}`, action: 'none' }];
     }
     return [
-      { key: 'jump', label: 'Jump to Star', action: 'page', page: 'stars' },
       { key: 'display', label: 'Display Options', action: 'page', page: 'display' },
       { key: 'about', label: 'About', action: 'page', page: 'about' },
     ];
@@ -153,9 +135,7 @@ export function createVrMenu({
   function rebuildMenuEntries(preferredKey = null) {
     const previousKey = preferredKey ?? menuPanelEntries[menuSelectedIndex]?.key ?? null;
     menuPanelEntries = buildMenuEntriesForPage(menuPage);
-    if (menuPage === 'stars' && preferredKey == null) {
-      menuSelectedIndex = -1;
-    } else if (menuPanelEntries.length === 0) {
+    if (menuPanelEntries.length === 0) {
       menuSelectedIndex = 0;
     } else {
       const preferredIndex = previousKey ? menuPanelEntries.findIndex((entry) => entry.key === previousKey) : -1;
@@ -168,7 +148,6 @@ export function createVrMenu({
     menuHoveredIndex = -1;
     rebuildMenuEntries(preferredKey);
     updateMenuPanelTexture();
-    notifyStateChange();
   }
 
   function activateEntry(entry) {
@@ -177,24 +156,12 @@ export function createVrMenu({
       openMenuPage(entry.page);
       return;
     }
-    if (entry.action === 'star' && entry.star) {
-      const selectedIndex = menuPanelEntries.findIndex((candidate) => candidate.key === entry.key);
-      if (selectedIndex >= 0) {
-        menuSelectedIndex = selectedIndex;
-        updateMenuPanelTexture();
-      }
-      entry.star.highlightUntilMs = performance.now() + 3000;
-      setStatus(`Selected ${entry.star.name}`);
-      notifyStateChange();
-      return;
-    }
     if (entry.action === 'toggle' && entry.optionKey) {
       if (typeof onToggleDisplayOption === 'function') {
         onToggleDisplayOption(entry.optionKey);
       }
       rebuildMenuEntries(entry.key);
       updateMenuPanelTexture();
-      notifyStateChange();
     }
   }
 
@@ -265,7 +232,6 @@ export function createVrMenu({
     if (nextVisible && cameraObject) {
       updateTransform(cameraObject, null, null);
     }
-    notifyStateChange();
   }
 
   function toggle(cameraObject = null) {
@@ -387,7 +353,6 @@ export function createVrMenu({
     if (hoveredIndex !== menuHoveredIndex) {
       menuHoveredIndex = hoveredIndex;
       updateMenuPanelTexture();
-      notifyStateChange();
     }
   }
 
@@ -399,26 +364,11 @@ export function createVrMenu({
       menuSelectedIndex = (menuSelectedIndex + delta + menuPanelEntries.length) % menuPanelEntries.length;
     }
     updateMenuPanelTexture();
-    notifyStateChange();
   }
 
   function activateCurrent() {
     const entry = menuPanelEntries[menuSelectedIndex];
     activateEntry(entry);
-  }
-
-  function getPreviewStarObject() {
-    if (!visible || menuPage !== 'stars') {
-      return null;
-    }
-    const activeIndex = menuSelectedIndex >= 0
-      ? menuSelectedIndex
-      : ((renderer.xr.isPresenting && menuHoveredIndex >= 0) ? menuHoveredIndex : -1);
-    const selectedEntry = menuPanelEntries[activeIndex];
-    if (!selectedEntry || selectedEntry.action !== 'star' || !selectedEntry.star) {
-      return null;
-    }
-    return selectedEntry.star;
   }
 
   return {
@@ -432,6 +382,5 @@ export function createVrMenu({
     updatePointerHover,
     moveSelection,
     activateCurrent,
-    getPreviewStarObject,
   };
 }

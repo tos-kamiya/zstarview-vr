@@ -7,7 +7,7 @@
 - immersive WebXR VR sessions
 - desktop browser sessions
 
-The application is intended to let a user inspect the night sky from a specified observing location, preview notable stars, and view supporting overlays such as asterisms and deep-sky objects.
+The application is intended to let a user inspect the sky from a specified observing location and view supporting layers such as the Gaia all-sky background, guides, asterisms, and deep-sky objects.
 
 ## 2. Supported Modes
 
@@ -35,7 +35,7 @@ The application supports the following primary user tasks.
 - Inspect stars, the Sun, the Moon, and major planets.
 - View deep-sky object markers and labels.
 - View named asterism overlays.
-- Select a named star from a menu and receive directional guidance toward it.
+- Toggle optional sky display layers.
 
 ## 4. Startup Behavior
 
@@ -108,12 +108,12 @@ The application renders the following content categories.
 
 - Base and extended star datasets rendered as layered point clouds.
 - Brighter and fainter stars differ in sprite scale and opacity.
-- Famous named stars are available for menu-based selection and hover interactions.
+- Famous named stars are available for labels and asterism hover interactions.
 
 ### 7.2 Solar System Bodies
 
 - Sun
-- Moon
+- Moon, rendered as a white disc with a black unilluminated region
 - Mercury
 - Venus
 - Mars
@@ -142,6 +142,14 @@ These bodies are rendered with dynamic positions derived from astronomical calcu
 - zenith and nadir markers
 - ecliptic line
 - celestial equator line
+- north and south celestial-pole markers
+- never-rises boundary, omitted where it collapses to a point at the equator
+
+### 7.6 Diffuse Background and Moon Phase
+
+- `Diffuse sky` displays the locally bundled Gaia EDR3 equirectangular Galactic-coordinate map behind stars and other celestial objects. It fades with solar altitude. If it fails to load, the application continues without the layer and reports the failure.
+- The Moon phase uses a spherical terminator lit from the calculated Sun direction. The rendered disc is 1.8 times its physical angular diameter for readability. It uses no image service or lunar surface texture.
+- Solar-system positions and phase share one observation timestamp per update.
 
 ## 8. VR Interaction
 
@@ -171,28 +179,17 @@ Menu characteristics:
 
 Current menu pages:
 
-- `Jump to Star`
 - `Display Options`
 - `About`
 
-### 8.4 Jump to Star
-
-The `Jump to Star` page lets the user select from a list of named stars.
-
-Behavior:
-
-- Before confirmation, the preview follows the currently hovered star.
-- After confirmation, the selected star remains active until the menu closes.
-- The application draws a target marker around the target star.
-- The application draws a great-circle arc from the current forward direction toward the target when the angular separation is large enough.
-- The application does not rotate the sky automatically; guidance is purely visual.
-
-### 8.5 Display Options
+### 8.4 Display Options
 
 The `Display Options` page currently supports:
 
 - `Asterisms`
 - `DSO`
+- `Diffuse sky`
+- `Sky Guides`
 
 When a layer is disabled, its related hover labels and highlight overlays are also suppressed.
 
@@ -287,7 +284,7 @@ The current implementation does not change:
 
 - asterism labels or asterism highlight behavior
 - deep-sky object label behavior
-- selected-star guidance arc behavior
+- menu-based named-star search and directional guidance
 - desktop mono label behavior
 - desktop fisheye label behavior
 
@@ -302,7 +299,7 @@ The current implementation does not change:
 
 ### 13.5 Solar-System Marker Behavior
 
-- Sun and Moon are marked with crosshair-style gauge markers.
+- The Sun uses a crosshair-style gauge marker; the Moon uses a white-and-black phase disc.
 - Planets are drawn with their existing marker plus an additional crosshair-style gauge marker.
 - Sun, Moon, and planet labels are no longer shown as always-on in-scene labels.
 - Those labels appear on the center ring panel when the corresponding object enters the center target zone.
@@ -311,7 +308,7 @@ The current implementation does not change:
 
 - Named stars can appear on the center ring panel when they enter the center target zone in VR.
 - Pointing at a named star no longer forces its normal label to appear by itself.
-- Existing selection and highlight behavior used by other VR features remains available.
+- Named stars remain available for labels and asterism highlighting; persistent menu selection is not provided.
 
 ### 13.7 Visual Behavior
 
