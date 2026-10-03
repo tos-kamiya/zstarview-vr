@@ -11,6 +11,7 @@
 - `src/main.js`: app bootstrap and top-level render/update orchestration
 - `src/menu/vr-menu.js`: VR menu state, panel drawing, and pointer/trigger interaction
 - `src/sky/gaia-background.js`: Gaia texture loading and Galactic-coordinate background material
+- `src/sky/atmosphere.js` and `src/sky/atmosphere-worker.js`: RGB scattering model and chunked all-sky texture generation
 - `src/asterisms/catalog.js`: imported asterism definitions
 - `src/asterisms/runtime.js`: source-id to runtime-star resolution for asterisms
 - `src/asterisms/render.js`: ambient/highlight asterism line rendering
@@ -90,6 +91,10 @@ The app first requests `public/data/cities-index-v2.json.gz` and decompresses it
 If that fails (unsupported browser or missing `.gz`), it falls back to `cities-index-v2.json`.
 
 This means server-side gzip settings are optional for city index loading.
+
+## Atmosphere Model
+
+The VR sky model is ported from the desktop project's RGB spherical-atmosphere calculation. It uses a fixed AOD550 of 0.15, observer height 0 m, 32 view steps, 12 Sun-path steps, and an initial 128×64 texture. The texture is generated in a module worker and shared across desktop, fisheye, and XR rendering. Twilight updates start at 15-second intervals and other updates at 60 seconds. These are initial settings; profile Quest worker time, memory, upload time, and frame impact before selecting production settings. Reference colour comparisons and headset validation are pending.
 
 ## Gaia Background Asset
 
@@ -185,7 +190,7 @@ Rule:
 - Added the bundled Galactic-coordinate Gaia background and `Diffuse sky` toggle.
 - Added a white-and-black Moon phase disc with a 1.8× angular-size readability multiplier.
 - Added the `Sky Guides` toggle, celestial-pole markers, and the latitude-dependent never-rises boundary.
-- The optional atmosphere-model port remains a separate future workstream.
+- Added the RGB atmosphere model and worker-backed sky texture; headset profiling and reference comparison remain pending.
 
 ### v0.8.0 (2026-03-06)
 

@@ -151,6 +151,13 @@ These bodies are rendered with dynamic positions derived from astronomical calcu
 - The Moon phase uses a spherical terminator lit from the calculated Sun direction. The rendered disc is 1.8 times its physical angular diameter for readability. It uses no image service or lunar surface texture.
 - Solar-system positions and phase share one observation timestamp per update.
 
+### 7.7 Atmospheric Sky
+
+- The sky uses the desktop project's RGB spherical-atmosphere model, sampled into a 128×64 texture in a Web Worker.
+- AOD550 is fixed at 0.15 and observer height is 0 m. The atmosphere is clipped at the geometric horizon; ground shading and sky guides remain separate.
+- Completed textures are shared across desktop, fisheye, and XR eyes. Worker failure leaves the procedural sky available.
+- Texture resolution and update intervals are provisional until Quest profiling and desktop-reference comparison are complete.
+
 ## 8. VR Interaction
 
 ### 8.1 Entering and Exiting VR

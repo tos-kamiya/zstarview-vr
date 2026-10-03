@@ -977,6 +977,8 @@ function createSkyMaterial() {
       uSunAltDeg: { value: -90.0 },
       uTurbidity: { value: 4.0 },
       uGroundMaskStrength: { value: 0.30 },
+      uAtmosphereTex: { value: null },
+      uAtmosphereReady: { value: 0.0 },
     },
     vertexShader: `
       varying vec3 vDir;
@@ -991,6 +993,8 @@ function createSkyMaterial() {
       uniform float uSunAltDeg;
       uniform float uTurbidity;
       uniform float uGroundMaskStrength;
+      uniform sampler2D uAtmosphereTex;
+      uniform float uAtmosphereReady;
 
       float luma(vec3 c) {
         return dot(c, vec3(0.299, 0.587, 0.114));
@@ -1041,7 +1045,15 @@ function createSkyMaterial() {
         vec3 groundColor = vec3(0.12, 0.19, 0.27);
         color = mix(color, groundColor, uGroundMaskStrength * groundMask);
 
+        if (uAtmosphereReady > 0.5 && dir.y >= 0.0) {
+          float azimuth = atan(dir.x, -dir.z) / 6.28318530718;
+          vec2 skyUv = vec2(fract(azimuth), clamp(dir.y, 0.0, 1.0));
+          color = texture2D(uAtmosphereTex, skyUv).rgb;
+        }
+
         gl_FragColor = vec4(color, 1.0);
+        #include <tonemapping_fragment>
+        #include <colorspace_fragment>
       }
     `,
   });
@@ -1193,6 +1205,87 @@ const sky = new THREE.Mesh(
 sky.renderOrder = -20;
 sky.position.set(0, EYE_HEIGHT_M, 0);
 scene.add(sky);
+let atmosphereWorker = null;
+try {
+  atmosphereWorker = new Worker(new URL('./sky/atmosphere-worker.js', import.meta.url), { type: 'module' });
+} catch (error) {
+  console.warn('Atmosphere worker could not be started:', error);
+}
+let atmosphereRequestId = 0;
+let atmospherePending = false;
+let atmosphereLastRequestMs = -Infinity;
+let atmosphereTexture = null;
+let atmosphereFailureReported = false;
+let atmosphereFailureLogged = false;
+
+function handleAtmosphereWorkerFailure(message) {
+  atmospherePending = false;
+  if (!atmosphereFailureLogged) {
+    atmosphereFailureLogged = true;
+    console.warn('Atmosphere model could not be generated:', message);
+  }
+  if (!atmosphereTexture && !atmosphereFailureReported) {
+    atmosphereFailureReported = true;
+    setStatus('Atmosphere model unavailable; using procedural sky');
+  }
+}
+
+atmosphereWorker?.addEventListener('message', (event) => {
+  const result = event.data;
+  if (result.requestId !== atmosphereRequestId) return;
+  atmospherePending = false;
+  if (result.error) {
+    handleAtmosphereWorkerFailure(result.error);
+    return;
+  }
+  const texture = new THREE.DataTexture(
+    new Uint8Array(result.data),
+    result.width,
+    result.height,
+    THREE.RGBAFormat,
+    THREE.UnsignedByteType,
+  );
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.wrapS = THREE.RepeatWrapping;
+  texture.wrapT = THREE.ClampToEdgeWrapping;
+  texture.minFilter = THREE.LinearFilter;
+  texture.magFilter = THREE.LinearFilter;
+  texture.generateMipmaps = false;
+  texture.flipY = false;
+  texture.needsUpdate = true;
+  const previousTexture = atmosphereTexture;
+  atmosphereTexture = texture;
+  skyMaterial.uniforms.uAtmosphereTex.value = texture;
+  skyMaterial.uniforms.uAtmosphereReady.value = 1.0;
+  if (previousTexture) previousTexture.dispose();
+  atmosphereFailureReported = false;
+  atmosphereFailureLogged = false;
+  console.info(`Atmosphere texture updated in ${result.elapsedMs.toFixed(0)} ms (${result.width}x${result.height})`);
+});
+atmosphereWorker?.addEventListener('error', (event) => handleAtmosphereWorkerFailure(event.message || 'worker error'));
+
+function requestAtmosphereTexture(sunAltDeg, sunAzDeg) {
+  if (!atmosphereWorker) {
+    handleAtmosphereWorkerFailure('Worker unavailable');
+    return;
+  }
+  const nowMs = performance.now();
+  const twilight = sunAltDeg >= -15.0 && sunAltDeg <= 15.0;
+  const intervalMs = twilight ? 15000 : 60000;
+  if (atmospherePending || nowMs - atmosphereLastRequestMs < intervalMs) return;
+  atmosphereLastRequestMs = nowMs;
+  atmospherePending = true;
+  atmosphereRequestId += 1;
+  atmosphereWorker.postMessage({
+    requestId: atmosphereRequestId,
+    sunAltDeg,
+    sunAzDeg,
+    width: 128,
+    height: 64,
+    quality: { viewSteps: 32, sunSteps: 12, aod550: 0.15 },
+  });
+}
+
 let gaiaBackground = null;
 let gaiaBackgroundFailed = false;
 
@@ -2009,9 +2102,11 @@ function updateSolarSystemMarkers() {
     skyMaterial.uniforms.uSunDir.value.copy(sunDir);
     skyMaterial.uniforms.uSunAltDeg.value = sunPos.altitude;
     if (gaiaBackground) gaiaBackground.material.uniforms.uSunAltitude.value = sunPos.altitude;
+    requestAtmosphereTexture(sunPos.altitude, sunPos.azimuth);
   } else {
     sunLabel.visible = false;
     skyMaterial.uniforms.uSunAltDeg.value = -90.0;
+    requestAtmosphereTexture(-90.0, 0.0);
   }
 
   if (moonSprite.visible && moonPos && Number.isFinite(moonPos.dist)) {
