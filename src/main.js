@@ -203,6 +203,7 @@ const fisheyeCubeTarget = new THREE.WebGLCubeRenderTarget(FISHEYE_CUBE_SIZE, {
   minFilter: THREE.LinearFilter,
   magFilter: THREE.LinearFilter,
 });
+fisheyeCubeTarget.texture.colorSpace = THREE.NoColorSpace;
 const fisheyeCubeCamera = new THREE.CubeCamera(0.1, 1200, fisheyeCubeTarget);
 
 const fisheyePostScene = new THREE.Scene();
@@ -241,21 +242,23 @@ const fisheyePostMaterial = new THREE.ShaderMaterial({
       float r = length(q);
       if (r > 1.0) {
         gl_FragColor = vec4(uBackground, 1.0);
-        return;
+      } else {
+        float theta = r * (0.5 * 3.141592653589793);
+        float phi = atan(q.y, q.x);
+        float sinTheta = sin(theta);
+
+        vec3 dirLocal = vec3(
+          sinTheta * cos(phi),
+          sinTheta * sin(phi),
+          -cos(theta)
+        );
+        vec3 dirWorld = normalize(uViewRot * dirLocal);
+        vec4 color = textureCube(uCubeTex, dirWorld);
+        gl_FragColor = vec4(color.rgb, 1.0);
       }
 
-      float theta = r * (0.5 * 3.141592653589793);
-      float phi = atan(q.y, q.x);
-      float sinTheta = sin(theta);
-
-      vec3 dirLocal = vec3(
-        sinTheta * cos(phi),
-        sinTheta * sin(phi),
-        -cos(theta)
-      );
-      vec3 dirWorld = normalize(uViewRot * dirLocal);
-      vec4 color = textureCube(uCubeTex, dirWorld);
-      gl_FragColor = vec4(color.rgb, 1.0);
+      #include <tonemapping_fragment>
+      #include <colorspace_fragment>
     }
   `,
 });

@@ -271,6 +271,8 @@ Core responsibilities:
 - update or dismiss the VR splash
 - render normally or through the fisheye path depending on mode
 
+Fisheye mode renders the scene into a linear cube texture, then applies the renderer's tone-mapping and output color-space transforms in its screen pass. This keeps sky and star brightness consistent with direct desktop rendering.
+
 The loop uses `safeCall()` wrappers around many operations to isolate runtime errors and report them to the HUD instead of crashing the entire frame.
 
 ## 6. Feature Module Design
