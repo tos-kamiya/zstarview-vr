@@ -49,16 +49,6 @@ Major cities (about 20):
 - [Mexico City, MX](https://tos-kamiya.github.io/zstarview-vr/?city=Mexico%20City&country=MX)
 - [Sao Paulo, BR](https://tos-kamiya.github.io/zstarview-vr/?city=Sao%20Paulo&country=BR)
 
-## Screenshots & Video
-
-**Quest 3 -- Video Capture (YouTube)**
-
-[![Watch on YouTube – zstarview-vr demo](./imgs/thumb-DuhdbugqAIg.png)](https://www.youtube.com/watch?v=DuhdbugqAIg)
-
-**Desktop web browser**
-
-![Desktop fisheye 180 screenshot](./imgs/browser-fisheye180.png)
-
 ## Usage (VR Mode)
 
 1. Open:

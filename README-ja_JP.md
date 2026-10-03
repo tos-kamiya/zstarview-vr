@@ -51,16 +51,6 @@ https://github.com/tos-kamiya/zstarview （Python/Qt 版）
 - [Mexico City, MX](https://tos-kamiya.github.io/zstarview-vr/?city=Mexico%20City&country=MX)
 - [Sao Paulo, BR](https://tos-kamiya.github.io/zstarview-vr/?city=Sao%20Paulo&country=BR)
 
-## スクリーンショット & 動画
-
-**Quest 3 -- ビデオキャプチャ(YouTube)**
-
-[![Watch on YouTube – zstarview-vr demo](./imgs/thumb-DuhdbugqAIg.png)](https://www.youtube.com/watch?v=DuhdbugqAIg)
-
-**デスクトップ（Webブラウザ版）**
-
-![Desktop fisheye 180 screenshot](./imgs/browser-fisheye180.png)
-
 ## 使い方（VRモード）
 
 1. アプリを開く:
