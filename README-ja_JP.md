@@ -69,6 +69,7 @@ https://github.com/tos-kamiya/zstarview （Python/Qt 版）
    - `?lat=35.465&lon=133.051`
    - `?city=Tokyo`
    - `?city=Matsue&country=JP`
+   - `?timeOffsetMinutes=120` で2時間先、`?timeOffsetMinutes=-90` で90分前の空を表示できます。
 3. VR を開始:
    - `Enter VR` を押す
    - ユーザーの前方に約 3 秒、地点情報のスプラッシュが表示されます

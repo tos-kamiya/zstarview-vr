@@ -67,6 +67,7 @@ Major cities (about 20):
    - `?lat=35.465&lon=133.051`
    - `?city=Tokyo`
    - `?city=Matsue&country=JP`
+   - `?timeOffsetMinutes=120` to view the sky two hours ahead (`-90` shifts it back 90 minutes).
 3. Start VR:
    - Press `Enter VR`.
    - A location splash appears in front of the user for about 3 seconds.

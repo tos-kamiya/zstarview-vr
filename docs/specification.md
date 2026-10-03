@@ -84,6 +84,8 @@ The observing location is determined in the following priority order.
 - `maxMag`
   - Controls how faint the loaded stars may be
   - supported effective values are clamped to the available dataset tiers up to `10`
+- `timeOffsetMinutes`
+  - Optional signed integer minute offset from the current time. Positive values move forward; negative values move backward. Invalid values are ignored.
 
 ### 6.2 Magnitude Tiers
 
@@ -255,8 +257,7 @@ If that feature is unavailable or the gzip asset cannot be used, the application
 
 ## 12. Non-Goals and Current Constraints
 
-- The application is not a full planetarium with arbitrary time controls.
-- The application currently has a fixed "current time" style rendering model rather than an exposed user time-setting workflow.
+- The application does not provide a time picker or continuously editable observation time. A fixed minute offset can be supplied when opening the URL.
 - The menu star list is intentionally limited to a subset of visible named stars prepared by the generated data.
 - The application currently favors immediate interactive rendering over extensive user customization.
 

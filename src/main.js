@@ -49,6 +49,7 @@ const EXTENDED_MAX_MAG_8 = 8.0;
 const EXTENDED_MAX_MAG_9 = 9.0;
 const EXTENDED_MAX_MAG_10 = 10.0;
 const APP_QUERY_PARAMS = new URLSearchParams(window.location.search);
+const TIME_OFFSET_MINUTES = parseTimeOffsetMinutesFromUrl(APP_QUERY_PARAMS);
 const DSO_SHAPE_MIN_MAJOR_ARCMIN = 15.0;
 const DSO_HOVER_SIZE_GAIN = 3.0;
 const DSO_HIT_MIN_ANGLE_DEG = 0.9;
@@ -126,6 +127,26 @@ function parseMaxMagFromUrl(searchParams) {
   if (parsed >= EXTENDED_MAX_MAG_8) return EXTENDED_MAX_MAG_8;
   if (parsed >= EXTENDED_MAX_MAG_7) return EXTENDED_MAX_MAG_7;
   return DEFAULT_MAX_MAG;
+}
+
+function parseTimeOffsetMinutesFromUrl(searchParams) {
+  const value = searchParams.get('timeOffsetMinutes');
+  if (value == null || !/^[+-]?\d+$/.test(value.trim())) return 0;
+  const parsed = Number(value);
+  if (!Number.isSafeInteger(parsed)) return 0;
+  const shiftedTimestamp = Date.now() + parsed * 60_000;
+  if (!Number.isFinite(shiftedTimestamp) || Math.abs(shiftedTimestamp) > 8.64e15) return 0;
+  return parsed;
+}
+
+function getObservationTime() {
+  return new Date(Date.now() + TIME_OFFSET_MINUTES * 60_000);
+}
+
+function getTimeOffsetLabel() {
+  if (TIME_OFFSET_MINUTES === 0) return '';
+  const sign = TIME_OFFSET_MINUTES > 0 ? '+' : '';
+  return ` / time offset ${sign}${TIME_OFFSET_MINUTES} min`;
 }
 
 const desktopViewMode = parseViewModeFromUrl(APP_QUERY_PARAMS);
@@ -1894,6 +1915,8 @@ const neverRisesBoundary = new THREE.LineLoop(
 );
 skyGuideGroup.add(neverRisesBoundary);
 
+const initialReferenceLineTime = getObservationTime();
+
 for (let i = 0; i < 2; i += 1) {
   const ring = createCircleOutlineSprite('rgba(255, 255, 255, 0.98)');
   ring.scale.set(8.4, 8.4, 1.0);
@@ -1917,7 +1940,7 @@ const eclipticLine = buildLineOnSky(
   (t) => {
     const lon = t * 360.0;
     const { raHours, decDeg } = eclipticLonToRaDec(lon);
-    return raDecToAltAz(raHours, decDeg, new Date(), observer);
+    return raDecToAltAz(raHours, decDeg, initialReferenceLineTime, observer);
   },
   SYMBOL_RADIUS - 1,
   new THREE.LineDashedMaterial({
@@ -1935,7 +1958,7 @@ const celestialEquatorLine = buildLineOnSky(
   240,
   (t) => {
     const ra = t * 24.0;
-    return raDecToAltAz(ra, 0.0, new Date(), observer);
+    return raDecToAltAz(ra, 0.0, initialReferenceLineTime, observer);
   },
   SYMBOL_RADIUS - 1,
   new THREE.LineDashedMaterial({
@@ -2088,7 +2111,7 @@ function placeBodySprite({ body, sprite, when, minAlt = -0.8, alwaysVisible = fa
 }
 
 function updateSolarSystemMarkers() {
-  const now = new Date();
+  const now = getObservationTime();
   updateStarfieldOrientation(now);
   rebuildReferenceLines(now);
 
@@ -2885,16 +2908,16 @@ async function initializeLocation() {
     return 'default';
   })();
   setStatus(
-    `${desktopModeLabel()} (${activeLocation.name} ${activeLocation.lat.toFixed(3)}N, ${activeLocation.lon.toFixed(3)}E / ${sourceTag} / stars: ${displayedStarCount} / DSO: ${dsoObjects.length} / maxMag: ${loadedMaxMag.toFixed(1)})`,
+    `${desktopModeLabel()} (${activeLocation.name} ${activeLocation.lat.toFixed(3)}N, ${activeLocation.lon.toFixed(3)}E / ${sourceTag}${getTimeOffsetLabel()} / stars: ${displayedStarCount} / DSO: ${dsoObjects.length} / maxMag: ${loadedMaxMag.toFixed(1)})`,
   );
   if (activeLocation.source === 'fallback_city_not_found') {
     const cc = activeLocation.requestedCountry ? ` in country '${activeLocation.requestedCountry}'` : '';
-    locationSummaryText = `City '${activeLocation.requestedCity}'${cc} not found. Using default: ${activeLocation.name} (${activeLocation.lat.toFixed(3)}, ${activeLocation.lon.toFixed(3)})`;
+    locationSummaryText = `City '${activeLocation.requestedCity}'${cc} not found. Using default: ${activeLocation.name} (${activeLocation.lat.toFixed(3)}, ${activeLocation.lon.toFixed(3)})${getTimeOffsetLabel()}`;
   } else if (activeLocation.source === 'fallback_city_index_error') {
     const cc = activeLocation.requestedCountry ? ` in country '${activeLocation.requestedCountry}'` : '';
-    locationSummaryText = `City lookup error for '${activeLocation.requestedCity}'${cc}. Using default: ${activeLocation.name} (${activeLocation.lat.toFixed(3)}, ${activeLocation.lon.toFixed(3)})`;
+    locationSummaryText = `City lookup error for '${activeLocation.requestedCity}'${cc}. Using default: ${activeLocation.name} (${activeLocation.lat.toFixed(3)}, ${activeLocation.lon.toFixed(3)})${getTimeOffsetLabel()}`;
   } else {
-    locationSummaryText = `${activeLocation.name} (${activeLocation.lat.toFixed(3)}, ${activeLocation.lon.toFixed(3)})`;
+    locationSummaryText = `${activeLocation.name} (${activeLocation.lat.toFixed(3)}, ${activeLocation.lon.toFixed(3)})${getTimeOffsetLabel()}`;
   }
 
   updateSolarSystemMarkers();
@@ -2902,7 +2925,7 @@ async function initializeLocation() {
   if (shouldLoadExtraStars && !renderer.xr.isPresenting) {
     void ensureExtendedStarsLoaded().then(() => {
       setStatus(
-        `${desktopModeLabel()} (${activeLocation.name} ${activeLocation.lat.toFixed(3)}N, ${activeLocation.lon.toFixed(3)}E / ${sourceTag} / stars: ${displayedStarCount} / DSO: ${dsoObjects.length} / maxMag: ${loadedMaxMag.toFixed(1)})`,
+        `${desktopModeLabel()} (${activeLocation.name} ${activeLocation.lat.toFixed(3)}N, ${activeLocation.lon.toFixed(3)}E / ${sourceTag}${getTimeOffsetLabel()} / stars: ${displayedStarCount} / DSO: ${dsoObjects.length} / maxMag: ${loadedMaxMag.toFixed(1)})`,
       );
     });
   }
