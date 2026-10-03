@@ -5,7 +5,7 @@ export function createGaiaBackground(texture) {
     uniforms: {
       uTexture: { value: texture },
       uWorldToEquatorial: { value: new THREE.Matrix3() },
-      uBrightness: { value: 0.7 },
+      uBrightness: { value: 0.5 },
       uSunAltitude: { value: -90 },
     },
     vertexShader: `
@@ -36,7 +36,7 @@ export function createGaiaBackground(texture) {
         vec3 rgb = texture2D(uTexture, uv).rgb;
         float nightFade = 1.0 - smoothstep(-8.0, 2.0, uSunAltitude);
         float daylightFade = mix(1.0, 0.12, smoothstep(-8.0, 10.0, uSunAltitude));
-        gl_FragColor = vec4(rgb * uBrightness, 0.55 * nightFade * daylightFade);
+        gl_FragColor = vec4(rgb * uBrightness, 0.12 * nightFade * daylightFade);
       }
     `,
     side: THREE.BackSide,

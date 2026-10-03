@@ -114,7 +114,7 @@ Related marker behavior:
 
 The Gaia texture is an equirectangular Galactic-coordinate map and is bundled locally. It fades in daylight and is rendered behind stars and celestial objects. If the image cannot load, the star scene remains available and the status reports the missing layer.
 
-The sky colour uses the desktop project's RGB spherical-atmosphere model. It is recomputed in a Web Worker from the Sun's altitude and azimuth, with a fixed AOD550 of 0.15, and shared by desktop, fisheye, and both XR eyes. The initial 128×64 texture is a profiling setting; Quest performance and desktop colour matching still need device validation. If generation fails, the procedural sky remains available.
+The sky colour uses the desktop project's RGB spherical-atmosphere model. It is recomputed in a Web Worker from the Sun's altitude and azimuth, with a fixed AOD550 of 0.15, and shared by desktop, fisheye, and both XR eyes. The display is dimmed to preserve star visibility, and the optional Gaia background is blended softly over it. The initial 128×64 texture is a profiling setting; Quest performance and desktop colour matching still need device validation. If generation fails, the procedural sky remains available.
 
 `Sky Guides` also includes north and south celestial-pole markers. The never-rises boundary follows the observer's hemisphere and latitude; at the equator it collapses to a pole and is omitted.
 Named-star search and persistent selected-target guidance have been removed; named-star labels and asterism pointing highlights remain.

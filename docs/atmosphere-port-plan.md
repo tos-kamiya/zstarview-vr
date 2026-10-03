@@ -96,6 +96,7 @@ global display mapping or angular sampling if a specific visual issue remains.
 - Level A remains the procedural fallback while the first model texture is generated and if the worker fails.
 - Level B is implemented in `src/sky/atmosphere.js` and `src/sky/atmosphere-worker.js`, with main-thread texture sampling in `src/main.js`.
 - The desktop sky-intensity adjustment and deep-night ambient contribution from `sky_disc.py` are included as the display-mapping portion of Level C.
+- A presentation gain of 0.16 and Gaia overlay alpha of 0.12 keep the atmosphere visible under Gaia and leave more contrast for stars; tune these after visual review.
 - Desktop sample comparisons, longitude-seam and horizon inspection, and Quest measurements have not been performed. The 128×64 resolution and 15/60-second update intervals are provisional.
 
 ## Out of scope

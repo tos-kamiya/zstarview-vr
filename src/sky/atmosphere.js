@@ -5,6 +5,7 @@ const TOP = 100.0;
 const VIEW_STEPS = 32;
 const SUN_STEPS = 12;
 const AOD550 = 0.15;
+const SKY_DISPLAY_GAIN = 0.16;
 const WAVELENGTHS = [650, 550, 450];
 const rayleighScatter = WAVELENGTHS.map((w) => (450 / w) ** 4);
 const aerosolScatter = WAVELENGTHS.map((w) => (550 / w) ** 0.7);
@@ -110,7 +111,9 @@ export function atmosphereColor(altitudeDeg, azimuthDeg, sunAltDeg, sunAzDeg, qu
 
   const sunWeight = smoothstep(-12, 3, sunAltDeg);
   const viewWeight = smoothstep(0, 90, altitudeDeg);
-  const display = rgb.map((value, k) => 1 - Math.exp(-Math.max(0, value + viewWeight * sunWeight * twilightRadiance[k]) * 2.8));
+  const display = rgb.map((value, k) => (
+    1 - Math.exp(-Math.max(0, value + viewWeight * sunWeight * twilightRadiance[k]) * 2.8)
+  ) * SKY_DISPLAY_GAIN);
   const luminance = display[0] * 0.2126 + display[1] * 0.7152 + display[2] * 0.0722;
   const ambientScale = 1 + smoothstep(-18, -9, sunAltDeg);
   for (let k = 0; k < 3; k += 1) {

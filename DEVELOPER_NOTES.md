@@ -94,7 +94,7 @@ This means server-side gzip settings are optional for city index loading.
 
 ## Atmosphere Model
 
-The VR sky model is ported from the desktop project's RGB spherical-atmosphere calculation. It uses a fixed AOD550 of 0.15, observer height 0 m, 32 view steps, 12 Sun-path steps, and an initial 128×64 texture. The texture is generated in a module worker and shared across desktop, fisheye, and XR rendering. Twilight updates start at 15-second intervals and other updates at 60 seconds. These are initial settings; profile Quest worker time, memory, upload time, and frame impact before selecting production settings. Reference colour comparisons and headset validation are pending.
+The VR sky model is ported from the desktop project's RGB spherical-atmosphere calculation. It uses a fixed AOD550 of 0.15, observer height 0 m, 32 view steps, 12 Sun-path steps, and an initial 128×64 texture. A display gain of 0.16 and Gaia alpha of 0.12 keep the sky subdued enough for the star field to remain visible. The texture is generated in a module worker and shared across desktop, fisheye, and XR rendering. Twilight updates start at 15-second intervals and other updates at 60 seconds. These are initial settings; profile Quest worker time, memory, upload time, and frame impact before selecting production settings. Reference colour comparisons and headset validation are pending.
 
 ## Gaia Background Asset
 
