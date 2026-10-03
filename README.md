@@ -62,8 +62,6 @@ Major cities (about 20):
    - Press `Enter VR`.
    - A location splash appears in front of the user for about 3 seconds.
 4. While immersed:
-   - On Quest 3, the Menu button on either controller toggles a gray world-anchored menu panel. The panel appears slightly to the left or right of your forward view depending on which controller opened it. Press the Menu button again to close it; the panel also closes automatically when you exit VR.
-   - Desktop users may toggle the same panel with the `M` key for preview/testing without entering a headset.
 Location resolution priority:
 
 1. `lat` + `lon` (if valid)
@@ -88,19 +86,6 @@ Related marker behavior:
 - The Sun uses a crosshair-style gauge marker; the Moon uses its phase disc.
 - Planets use their existing marker plus a crosshair-style gauge marker.
 - Solar-system labels are no longer shown as always-on world labels; they are shown through the center panel when relevant.
-
-## Feature: VR Menu / Display Options
-
-- **Entry point**: Press the Menu button on either VR controller (or `M` on desktop) to open the menu.
-- **Top level**: The menu contains `Display Options` and `About`.
-- **Hover and select**: In VR, point at a menu item to hover it, then press the trigger to activate it.
-- **Display Options**:
-  - `Asterisms` toggles the ambient/highlighted asterism overlay.
-  - `DSO` toggles deep-sky-object markers and labels.
-  - `Diffuse sky` toggles the bundled Gaia EDR3 all-sky background.
-  - `Sky Guides` toggles the horizon references, celestial poles, equator, ecliptic, and never-rises boundary.
-  - Toggle items show their current state with `☑` / `☐`.
-- **Moon**: Shown as a white disc with a black unilluminated region. Its phase and orientation use the same observation time as the solar-system positions; its rendered diameter uses a documented 1.8× readability scale.
 
 The Gaia texture is an equirectangular Galactic-coordinate map and is bundled locally. It fades in daylight and is rendered behind stars and celestial objects. If the image cannot load, the star scene remains available and the status reports the missing layer.
 
